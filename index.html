@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="asset-base" content="./assets/">
   <title>Hello Kitty Match-3 — Tools + Charges + Badges (Bomb per 5)</title>
-  <link rel="icon" href="assets/logo.png" />
+  <link rel="icon" href="./assets/logo.png" />
   <style>
     :root{ --gap:8px; --radius:16px; --ink:#1a1333; --muted:#7b6a84; --accent:#ef5da8; --accent2:#60a5fa; }
     *{ box-sizing:border-box }
@@ -153,7 +154,8 @@ const TILE_FILES = [
   "badtemaru.png","cinnamoroll.png","hello_kitty.png","keroppi.png",
   "kuromi.png","pochacco.png","purin.png","tuxedo_sam.png"
 ];
-const IMAGES = TILE_FILES.map(f => "assets/" + f.split("/").pop());
+const ASSET_BASE = (document.querySelector('meta[name="asset-base"]')?.content) || "./assets/";
+const IMAGES = TILE_FILES.map(f => ASSET_BASE + f.split("/").pop());
 
 const COLS = 8, ROWS = 8, TYPES = IMAGES.length;
 let board = [];
