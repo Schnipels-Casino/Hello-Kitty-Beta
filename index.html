@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Match-3 — Endless</title>
+  <title>Match-3 — Endless + Leaderboard</title>
   <style>
     :root{ --gap:8px; --radius:16px; --ink:#1a1333; --muted:#7b6a84; --accent:#ef5da8; --accent2:#60a5fa; }
     *{ box-sizing:border-box }
@@ -30,6 +30,8 @@
     .btn{ appearance:none; border:0; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; font-weight:700; padding:8px 12px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.12); cursor:pointer; }
     .btn:active{ transform: translateY(1px); }
     .btn[aria-pressed="false"]{ filter:grayscale(1) brightness(0.9); }
+    .linklike{ background:none; border:0; padding:0; color:var(--accent2); font-weight:700; cursor:pointer; }
+    .linklike:focus{ outline:2px solid var(--accent2); border-radius:6px; }
 
     .tools{
       display:flex; gap:10px; align-items:center; justify-content:center;
@@ -111,17 +113,28 @@
     @keyframes kittyPop{ 0%{ transform:scale(1) } 60%{ transform:scale(1.25) rotate(-6deg)} 100%{ transform:scale(0.1); opacity:0 } }
 
     footer{ display:flex; justify-content:center; padding:6px 0; }
-    .info-panel{
+    .info-panel, .leaderboard-panel{
       position: fixed; left:50%; bottom:16px; transform: translateX(-50%);
-      background: rgba(255,255,255,.95); backdrop-filter: blur(6px);
+      background: rgba(255,255,255,.97); backdrop-filter: blur(6px);
       border:1px solid rgba(0,0,0,.06); border-radius: 16px; padding:14px 16px;
       box-shadow: 0 14px 36px rgba(0,0,0,.18);
-      width:min(92vw, 560px); z-index:10;
+      width:min(92vw, 620px); z-index:10;
+      max-height: 70vh; overflow:auto;
     }
-    .info-panel[hidden]{ display:none; }
-    .info-panel h3{ margin:0 0 8px 0; font-size:1.05rem }
-    .info-panel ul{ margin:8px 0; padding-left:18px }
-    .info-actions{ display:flex; justify-content:flex-end; margin-top:8px }
+    .info-panel[hidden], .leaderboard-panel[hidden]{ display:none; }
+    .info-panel h3, .leaderboard-panel h3{ margin:0 0 8px 0; font-size:1.05rem }
+
+    .info-actions, .leaderboard-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:8px }
+
+    .lb-head{ display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap }
+    .lb-name{ flex:1 1 auto; display:flex; gap:8px; align-items:center }
+    .lb-name input{ flex:1 1 auto; min-width:140px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,.1); }
+    .lb-table{ width:100%; border-collapse: collapse; margin-top:8px; }
+    .lb-table th, .lb-table td{ text-align:left; padding:8px; border-bottom:1px solid rgba(0,0,0,.06); }
+    .lb-rank{ width:56px; font-weight:800 }
+    .lb-score{ text-align:right; font-variant-numeric: tabular-nums; }
+    .lb-me{ background:linear-gradient(90deg, rgba(96,165,250,.18), transparent 70%); }
+    .lb-empty{ padding:8px; color:var(--muted); }
   </style>
 </head>
 <body>
@@ -130,7 +143,12 @@
     <header>
       <div>
         <div class="stat">Punkte: <span id="score">0</span></div>
-        <div class="sub">Bestleistung: <span id="best">0</span></div>
+        <div class="sub">
+          <!-- Klickbar: öffnet Bestenliste -->
+          <button id="openLeaderboard" class="linklike" title="Bestenliste ansehen">
+            Bestleistung: <span id="best">0</span> ⟩
+          </button>
+        </div>
       </div>
       <div class="tools" aria-label="Werkzeuge">
         <button class="btn-tool" id="btnJoker" title="Joker: Feld neu mischen (1×/Spiel)" aria-pressed="false">
@@ -177,6 +195,7 @@
     </footer>
   </div>
 
+  <!-- Info-Panel -->
   <div id="infoPanel" class="info-panel" hidden role="dialog" aria-modal="true" aria-labelledby="infoTitle">
     <h3 id="infoTitle">So spielst du</h3>
     <p>Wische (Finger/Maus gedrückt halten) eine Kachel zu einer benachbarten, um 3 oder mehr gleiche zu kombinieren.</p>
@@ -192,10 +211,34 @@
     </div>
   </div>
 
+  <!-- Leaderboard-Panel -->
+  <div id="leaderboardPanel" class="leaderboard-panel" hidden role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+    <div class="lb-head">
+      <h3 id="lbTitle">🏆 Bestenliste</h3>
+      <div class="lb-name">
+        <label for="nameInput">Dein Name:</label>
+        <input id="nameInput" placeholder="z. B. CandyPro123" maxlength="24" />
+        <button class="btn" id="saveNameBtn">Speichern</button>
+      </div>
+    </div>
+    <table class="lb-table" aria-label="Bestenliste">
+      <thead>
+        <tr><th class="lb-rank">#</th><th>Name</th><th class="lb-score">Score</th></tr>
+      </thead>
+      <tbody id="lbBody">
+        <tr><td colspan="3" class="lb-empty">Lade…</td></tr>
+      </tbody>
+    </table>
+    <div class="leaderboard-actions">
+      <button class="btn" id="loadMoreBtn">Mehr laden</button>
+      <button class="btn" id="closeLbBtn">Schließen</button>
+    </div>
+  </div>
+
 <script>
 'use strict';
 
-/* Emojis (🐭 → 🐷 ersetzt) */
+/* Emojis */
 const EMOJIS = ["🐶","🐱","🐷","🐹","🐰","🦊","🐻","🐼"];
 
 const COLS = 8, ROWS = 8, TYPES = EMOJIS.length;
@@ -218,7 +261,7 @@ elBest.textContent = best;
 
 const sleep = (ms)=> new Promise(r => setTimeout(r, ms));
 
-/* Innenrand = Lücke für cleanen Board-Rand */
+/* Innenrand = Lücke */
 function stepPx(){
   const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 8;
   const W = elBoard.clientWidth;
@@ -271,6 +314,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
   infoBtn.addEventListener('click', openInfo);
   closeInfo.addEventListener('click', closePanel);
   window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closePanel(); });
+
+  // Leaderboard öffnen/schließen
+  document.getElementById('openLeaderboard').addEventListener('click', ()=> {
+    const lb = document.getElementById('leaderboardPanel');
+    lb.hidden = false;
+    window.dispatchEvent(new Event('leaderboard-open'));
+  });
+  document.getElementById('closeLbBtn').addEventListener('click', ()=> {
+    document.getElementById('leaderboardPanel').hidden = true;
+    window.dispatchEvent(new Event('leaderboard-close'));
+  });
 });
 
 function init(){
@@ -508,121 +562,27 @@ async function animateSwap(a,b){
   await sleep(180);
   elA.style.transform = 'translate(0,0)'; elB.style.transform = 'translate(0,0)';
 }
-function updateScore(inc){ score += inc; elScore.textContent = score; if (score>best){ best=score; localStorage.setItem('kitty-best', best); elBest.textContent=best; } }
+function updateScore(inc){
+  score += inc;
+  elScore.textContent = score;
+  if (score>best){
+    best=score;
+    localStorage.setItem('kitty-best', best);
+    elBest.textContent=best;
+    // → Leaderboard informieren
+    if (typeof window.onBestChanged === 'function'){ window.onBestChanged(best); }
+    window.dispatchEvent(new CustomEvent('best-changed', { detail: { best } }));
+  }
+}
 
-// Tools
-function unlockRocket(){
-  rocketCharges = (rocketCharges||0) + 1;
-  if (!rocketUnlocked){
-    rocketUnlocked = true;
-    const btn = document.getElementById('btnRocket');
-    if (btn){ btn.disabled = false; btn.classList.add('unlock-pop'); setTimeout(()=>btn.classList.remove('unlock-pop'), 500); }
-  }
-  refreshToolsUI();
-}
-function unlockBomb(){
-  bombCharges = (bombCharges||0) + 1;
-  if (!bombUnlocked){
-    bombUnlocked = true;
-    const btn = document.getElementById('btnBomb');
-    if (btn){ btn.disabled = false; btn.classList.add('unlock-pop'); setTimeout(()=>btn.classList.remove('unlock-pop'), 500); }
-  }
-  refreshToolsUI();
-}
-function unlockKitty(){
-  kittyCharges = (kittyCharges||0) + 1;
-  if (!kittyUnlocked){
-    kittyUnlocked = true;
-    const btn = document.getElementById('btnKitty');
-    if (btn){ btn.disabled = false; btn.classList.add('unlock-pop'); setTimeout(()=>btn.classList.remove('unlock-pop'), 500); }
-  }
-  refreshToolsUI();
-}
-async function useJoker(){
-  if (busy || jokerUsed) return;
-  busy = true;
-  try{
-    if (typeof sfxJoker==='function') sfxJoker();
-    elBoard.classList.add('rewind');
-    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) board[r][c] = randType();
-    draw(); await sleep(220); elBoard.classList.remove('rewind');
-    jokerUsed = true;
-    const btn = document.getElementById('btnJoker'); if (btn) btn.disabled = true; btn.setAttribute('aria-pressed','false');
-    await resolveMatches();
-  } finally { busy=false; }
-}
-async function useRocket(col){
-  if (rocketCharges <= 0) { setTool('none'); return; }
-  if (busy) return;
-  if (col<0 || col>=COLS) { setTool('none'); return; }
-  busy = true;
-  try{
-    if (typeof sfxRocket==='function') sfxRocket();
-    for (let r=ROWS-1, delay=0; r>=0; r--, delay+=30){
-      const el = getTileEl(r,col); if (el){ setTimeout(()=>{ el.classList.add('rocket-pop'); }, delay); }
-    }
-    await sleep(260 + ROWS*30);
-    for (let r=0;r<ROWS;r++) board[r][col] = -1;
-    for (let c=0;c<COLS;c++){
-      let write = ROWS-1;
-      for (let r=ROWS-1;r>=0;r--){
-        if (board[r][c]!==-1){ board[write][c]=board[r][c]; write--; }
-      }
-      for (let r=write;r>=0;r--) board[r][c] = randType();
-    }
-    draw(); await sleep(120); await resolveMatches();
-    rocketCharges = Math.max(0, rocketCharges-1); refreshToolsUI(); setTool('none');
-  } finally { busy=false; }
-}
-async function useBomb(r,c){
-  if (bombCharges <= 0) { setTool('none'); return; }
-  if (busy) return; busy = true;
-  try{
-    if (typeof sfxBomb==='function') sfxBomb();
-    const deltas = [[0,-1],[-1,-1],[-1,0],[-1,1],[0,1],[1,1],[1,0],[1,-1]];
-    const targets = [];
-    for (const [dr,dc] of deltas){
-      const rr = r+dr, cc = c+dc;
-      if (rr>=0 && rr<ROWS && cc>=0 && cc<COLS){
-        targets.push([rr,cc]);
-        const el = getTileEl(rr,cc); if (el) el.classList.add('bomb-pop');
-      }
-    }
-    await sleep(260);
-    for (const [rr,cc] of targets) board[rr][cc] = -1;
-    for (let c2=0;c2<COLS;c2++){
-      let write = ROWS-1;
-      for (let r2=ROWS-1;r2>=0;r2--){
-        if (board[r2][c2]!==-1){ board[write][c2]=board[r2][c2]; write--; }
-      }
-      for (let r2=write;r2>=0;r2--) board[r2][c2] = randType();
-    }
-    draw(); await sleep(120); await resolveMatches();
-    bombCharges = Math.max(0, bombCharges-1); refreshToolsUI(); setTool('none');
-  } finally { busy=false; }
-}
-async function useKitty(r,c){
-  if (kittyCharges <= 0) { setTool('none'); return; }
-  if (r==null || c==null) { setTool('none'); return; }
-  if (r<0||c<0||r>=ROWS||c>=COLS) { setTool('none'); return; }
-  if (busy) return;
-  busy = true;
-  try{
-    const target = board[r][c];
-    if (target == null || target < 0){ busy=false; setTool('none'); return; }
-    if (typeof sfxKitty==='function') sfxKitty();
-    const victims = [];
-    for (let rr=0; rr<ROWS; rr++) for (let cc=0; cc<COLS; cc++) if (board[rr][cc] === target) victims.push([rr,cc]);
-    for (const [rr,cc] of victims){ const el = getTileEl(rr,cc); if (el) el.classList.add('kitty-pop'); }
-    await sleep(260);
-    for (const [rr,cc] of victims) board[rr][cc] = -1;
-    updateScore(10 * victims.length);
-    for (let c2=0;c2<COLS;c2++){ let write = ROWS-1; for (let r2=ROWS-1;r2>=0;r2--){ if (board[r2][c2]!==-1){ board[write][c2]=board[r2][c2]; write--; } } for (let r2=write;r2>=0;r2--) board[r2][c2] = randType(); }
-    draw(); await sleep(120);
-    await resolveMatches();
-    kittyCharges = Math.max(0, kittyCharges-1); refreshToolsUI(); setTool('none');
-  } finally { busy = false; }
-}
+// Tools (unverändert)
+function unlockRocket(){ rocketCharges = (rocketCharges||0) + 1; if (!rocketUnlocked){ rocketUnlocked = true; const btn = document.getElementById('btnRocket'); if (btn){ btn.disabled = false; btn.classList.add('unlock-pop'); setTimeout(()=>btn.classList.remove('unlock-pop'), 500); } } refreshToolsUI(); }
+function unlockBomb(){ bombCharges = (bombCharges||0) + 1; if (!bombUnlocked){ bombUnlocked = true; const btn = document.getElementById('btnBomb'); if (btn){ btn.disabled = false; btn.classList.add('unlock-pop'); setTimeout(()=>btn.classList.remove('unlock-pop'), 500); } } refreshToolsUI(); }
+function unlockKitty(){ kittyCharges = (kittyCharges||0) + 1; if (!kittyUnlocked){ kittyUnlocked = true; const btn = document.getElementById('btnKitty'); if (btn){ btn.disabled = false; btn.classList.add('unlock-pop'); setTimeout(()=>btn.classList.remove('unlock-pop'), 500); } } refreshToolsUI(); }
+async function useJoker(){ if (busy || jokerUsed) return; busy = true; try{ if (typeof sfxJoker==='function') sfxJoker(); elBoard.classList.add('rewind'); for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) board[r][c] = randType(); draw(); await sleep(220); elBoard.classList.remove('rewind'); jokerUsed = true; const btn = document.getElementById('btnJoker'); if (btn) btn.disabled = true; btn.setAttribute('aria-pressed','false'); await resolveMatches(); } finally { busy=false; } }
+async function useRocket(col){ if (rocketCharges <= 0) { setTool('none'); return; } if (busy) return; if (col<0 || col>=COLS) { setTool('none'); return; } busy = true; try{ if (typeof sfxRocket==='function') sfxRocket(); for (let r=ROWS-1, delay=0; r>=0; r--, delay+=30){ const el = getTileEl(r,col); if (el){ setTimeout(()=>{ el.classList.add('rocket-pop'); }, delay); } } await sleep(260 + ROWS*30); for (let r=0;r<ROWS;r++) board[r][col] = -1; for (let c=0;c<COLS;c++){ let write = ROWS-1; for (let r=ROWS-1;r>=0;r--){ if (board[r][c]!==-1){ board[write][c]=board[r][c]; write--; } } for (let r=write;r>=0;r--) board[r][c] = randType(); } draw(); await sleep(120); await resolveMatches(); rocketCharges = Math.max(0, rocketCharges-1); refreshToolsUI(); setTool('none'); } finally { busy=false; } }
+async function useBomb(r,c){ if (bombCharges <= 0) { setTool('none'); return; } if (busy) return; busy = true; try{ if (typeof sfxBomb==='function') sfxBomb(); const deltas = [[0,-1],[-1,-1],[-1,0],[-1,1],[0,1],[1,1],[1,0],[1,-1]]; const targets = []; for (const [dr,dc] of deltas){ const rr = r+dr, cc = c+dc; if (rr>=0 && rr<ROWS && cc>=0 && cc<COLS){ targets.push([rr,cc]); const el = getTileEl(rr,cc); if (el) el.classList.add('bomb-pop'); } } await sleep(260); for (const [rr,cc] of targets) board[rr][cc] = -1; for (let c2=0;c2<COLS;c2++){ let write = ROWS-1; for (let r2=ROWS-1;r2>=0;r2--){ if (board[r2][c2]!==-1){ board[write][c2]=board[r2][c2]; write--; } } for (let r2=write;r2>=0;r2--) board[r2][c2] = randType(); } draw(); await sleep(120); await resolveMatches(); bombCharges = Math.max(0, bombCharges-1); refreshToolsUI(); setTool('none'); } finally { busy=false; } }
+async function useKitty(r,c){ if (kittyCharges <= 0) { setTool('none'); return; } if (r==null || c==null) { setTool('none'); return; } if (r<0||c<0||r>=ROWS||c>=COLS) { setTool('none'); return; } if (busy) return; busy = true; try{ const target = board[r][c]; if (target == null || target < 0){ busy=false; setTool('none'); return; } if (typeof sfxKitty==='function') sfxKitty(); const victims = []; for (let rr=0; rr<ROWS; rr++) for (let cc=0; cc<COLS; cc++) if (board[rr][cc] === target) victims.push([rr,cc]); for (const [rr,cc] of victims){ const el = getTileEl(rr,cc); if (el) el.classList.add('kitty-pop'); } await sleep(260); for (const [rr,cc] of victims) board[rr][cc] = -1; updateScore(10 * victims.length); for (let c2=0;c2<COLS;c2++){ let write = ROWS-1; for (let r2=ROWS-1;r2>=0;r2--){ if (board[r2][c2]!==-1){ board[write][c2]=board[r2][c2]; write--; } } for (let r2=write;r2>=0;r2--) board[r2][c2] = randType(); } draw(); await sleep(120); await resolveMatches(); kittyCharges = Math.max(0, kittyCharges-1); refreshToolsUI(); setTool('none'); } finally { busy = false; } }
 
 // Starfield (Deko)
 (function(){
@@ -635,7 +595,7 @@ async function useKitty(r,c){
   }catch(e){}
 })();
 
-/* ====== Audio Engine: Tag → Nacht (mobile-optimiert) ====== */
+/* ====== Audio Engine: Tag → Nacht (mobil-freundlich) ====== */
 (function(){
   try{
     const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
@@ -662,40 +622,29 @@ async function useKitty(r,c){
       audio.music  = audio.ctx.createGain();
       audio.dayBus = audio.ctx.createGain();   audio.dayBus.gain.value = 0.9;
       audio.nightBus = audio.ctx.createGain(); audio.nightBus.gain.value = 0.0;
-      audio.dayBus.connect(audio.music);
-      audio.nightBus.connect(audio.music);
+      audio.dayBus.connect(audio.music); audio.nightBus.connect(audio.music);
 
-      // Leichter Delay (Ping-Pong-artig, low CPU)
+      // Delay
       audio.dry   = audio.ctx.createGain(); audio.dry.gain.value = 0.85;
       audio.delay = audio.ctx.createDelay(1.0); audio.delay.delayTime.value = 0.28;
       audio.fb    = audio.ctx.createGain(); audio.fb.gain.value = 0.22;
       audio.wet   = audio.ctx.createGain(); audio.wet.gain.value = 0.18;
-
-      audio.music.connect(audio.dry);
-      audio.music.connect(audio.delay);
+      audio.music.connect(audio.dry); audio.music.connect(audio.delay);
       audio.delay.connect(audio.fb); audio.fb.connect(audio.delay);
       audio.delay.connect(audio.wet);
-
-      audio.dry.connect(audio.master);
-      audio.wet.connect(audio.master);
-      audio.sfx.connect(audio.master);
+      audio.dry.connect(audio.master); audio.wet.connect(audio.master); audio.sfx.connect(audio.master);
       audio.master.connect(audio.ctx.destination);
 
       startDayMusic();
-      // Auto-Nachtmodus nach 2 Minuten
       audio.crossTimer = setTimeout(beginNightMode, 120000);
-
       audio.started = true;
     }
     window.ensureAudio = ensure;
 
-    // ---------- Instrumente (leicht & sparsam) ----------
     function playTone({type="triangle", hz=440, t=0, dur=.5, gain=.2, cutoff=1500, target=audio.dayBus}){
-      const o = audio.ctx.createOscillator();
-      o.type = type; o.frequency.setValueAtTime(hz, t);
+      const o = audio.ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(hz, t);
       const f = audio.ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.setValueAtTime(cutoff, t);
-      const v = audio.ctx.createGain();
-      v.gain.setValueAtTime(0.0001, t);
+      const v = audio.ctx.createGain(); v.gain.setValueAtTime(0.0001, t);
       v.gain.linearRampToValueAtTime(gain, t+0.02);
       v.gain.exponentialRampToValueAtTime(Math.max(0.0001,gain*0.35), t+Math.min(0.12,dur*0.4));
       v.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.18, dur*0.9));
@@ -704,144 +653,68 @@ async function useKitty(r,c){
     }
     function bass(hz, t, beat, target){ playTone({type:"sine", hz:hz*0.5, t, dur:beat*0.95, gain:.22, cutoff:700, target}); }
     function arp(hz, t, stepDur, target){ playTone({type:"triangle", hz, t, dur:stepDur*0.98, gain:.14, cutoff:1800, target}); }
-    function padChord(hzList, t, beat, target){
-      hzList.forEach((hz,i)=> playTone({type:"sawtooth", hz, t, dur:beat*3.6, gain:.055, cutoff:900 + i*120, target}));
-    }
-    function bell(hz, t, stepDur, target){
-      // kurzer "Candy"-Bell
-      playTone({type:"square", hz, t, dur:stepDur*0.8, gain:.10, cutoff:2400, target});
-    }
+    function padChord(hzList, t, beat, target){ hzList.forEach((hz,i)=> playTone({type:"sawtooth", hz, t, dur:beat*3.6, gain:.055, cutoff:900 + i*120, target})); }
+    function bell(hz, t, stepDur, target){ playTone({type:"square", hz, t, dur:stepDur*0.8, gain:.10, cutoff:2400, target}); }
 
-    // ---------- Day Track ----------
     function startDayMusic(){
-      const bpm = 96;
-      const beat = 60/bpm;
-      const step = beat/2;
-      const lookahead = 25;       // ms
-      const scheduleAhead = 0.25; // s
-
-      const progression = [
-        [60,64,67], // C
-        [57,60,64], // Am
-        [53,57,60], // F
-        [55,59,62], // G
-        [60,64,67], // C
-        [52,55,59], // Em
-        [53,57,60], // F
-        [55,59,62], // G
-      ];
-      const arpPattern = [0,1,2,1,0,1,2,1];
-      let nextTime = audio.ctx.currentTime + 0.1;
-      let stepIndex = 0;
-
+      const bpm = 96, beat = 60/bpm, step = beat/2, look=25, ahead=.25;
+      const progression = [[60,64,67],[57,60,64],[53,57,60],[55,59,62],[60,64,67],[52,55,59],[53,57,60],[55,59,62]];
+      const arpPat = [0,1,2,1,0,1,2,1];
+      let tNext = audio.ctx.currentTime + .1, idx=0;
       function schedule(){
-        if (!audio.visible) return;
-        while (nextTime < audio.ctx.currentTime + scheduleAhead){
-          const bar = Math.floor(stepIndex / 8);
-          const stepInBar = stepIndex % 8;
-          const chord = progression[bar % progression.length];
-          const root = chord[0];
+        if(!audio.visible) return;
+        while (tNext < audio.ctx.currentTime + ahead){
+          const bar = Math.floor(idx/8), stepIn = idx%8, chord = progression[bar%progression.length], root = chord[0];
           const hzChord = chord.map(m=>midiToHz(m));
-
-          if (stepInBar === 0){ padChord(hzChord.map(h=>h*0.5), nextTime, beat, audio.dayBus); }
-          if (stepInBar % 2 === 0){
-            const bassNote = midiToHz(root - 12 + (Math.random()<0.2? -12:0));
-            bass(bassNote, nextTime, beat, audio.dayBus);
-          }
-          const deg = arpPattern[stepInBar % arpPattern.length];
-          let noteMidi = chord[deg] + (Math.random()<0.35 ? 12 : 0);
-          if (Math.random()<0.12) noteMidi += (Math.random()<0.5? -2:2);
-          arp(midiToHz(noteMidi), nextTime, step, audio.dayBus);
-
-          if (Math.random()<0.18 && stepInBar!==0){
-            const sp = chord[(deg+1)%3] + 12 + (Math.random()<0.4?12:0);
-            bell(midiToHz(sp), nextTime + step*0.5, step, audio.dayBus);
-          }
-          nextTime += step; stepIndex++;
+          if(stepIn===0) padChord(hzChord.map(h=>h*0.5), tNext, beat, audio.dayBus);
+          if(stepIn%2===0){ const b=midiToHz(root-12+(Math.random()<.2?-12:0)); bass(b,tNext,beat,audio.dayBus); }
+          const deg=arpPat[stepIn], add12=Math.random()<.35?12:0; let note=chord[deg]+add12; if(Math.random()<.12) note+=(Math.random()<.5?-2:2);
+          arp(midiToHz(note), tNext, step, audio.dayBus);
+          if(Math.random()<.18 && stepIn!==0){ const sp=chord[(deg+1)%3]+12+(Math.random()<.4?12:0); bell(midiToHz(sp), tNext+step*.5, step, audio.dayBus); }
+          tNext+=step; idx++;
         }
       }
-      audio.daySched = setInterval(schedule, lookahead);
+      audio.daySched=setInterval(schedule, look);
     }
 
-    // ---------- Night Track (ruhig, langsamer, weiche Pads) ----------
     function startNightMusic(){
       if (audio.nightSched) return;
-      const bpm = 72;
-      const beat = 60/bpm;
-      const step = beat/2;
-      const lookahead = 30;        // ms (langsamer)
-      const scheduleAhead = 0.35;  // s
-
-      const progression = [
-        [57,60,64], // Am
-        [53,57,60], // F
-        [60,64,67], // C
-        [55,59,62], // G
-      ];
-      const arpPattern = [0,1,1,2,1,0,0,1]; // seltener Wechsel
-
-      let nextTime = audio.ctx.currentTime + 0.1;
-      let stepIndex = 0;
-
+      const bpm=72, beat=60/bpm, step=beat/2, look=30, ahead=.35;
+      const progression = [[57,60,64],[53,57,60],[60,64,67],[55,59,62]];
+      const arpPat=[0,1,1,2,1,0,0,1];
+      let tNext=audio.ctx.currentTime+.1, idx=0;
       function schedule(){
-        if (!audio.visible) return;
-        while (nextTime < audio.ctx.currentTime + scheduleAhead){
-          const bar = Math.floor(stepIndex / 8);
-          const stepInBar = stepIndex % 8;
-          const chord = progression[bar % progression.length];
-          const root = chord[0];
-          const hzChord = chord.map(m=>midiToHz(m));
-
-          // Längere Pads, kein ständiger Arp
-          if (stepInBar === 0){ padChord(hzChord.map(h=>h*0.5), nextTime, beat*1.25, audio.nightBus); }
-          if (stepInBar % 4 === 0){
-            const b = midiToHz(root - 12);
-            bass(b, nextTime, beat*1.1, audio.nightBus);
-          }
-          // Arp nur gelegentlich
-          if (Math.random() < 0.45){
-            const deg = arpPattern[stepInBar];
-            const note = chord[deg] + (Math.random()<0.25?12:0);
-            arp(midiToHz(note), nextTime, step*0.95, audio.nightBus);
-          }
-          // Dezenter Glitzer noch seltener
-          if (Math.random() < 0.12 && stepInBar>0){
-            const bellMidi = chord[(stepInBar%3)] + 12;
-            bell(midiToHz(bellMidi), nextTime + step*0.5, step, audio.nightBus);
-          }
-          nextTime += step; stepIndex++;
+        if(!audio.visible) return;
+        while (tNext < audio.ctx.currentTime + ahead){
+          const bar=Math.floor(idx/8), stepIn=idx%8, chord=progression[bar%progression.length], root=chord[0];
+          const hzChord=chord.map(m=>midiToHz(m));
+          if(stepIn===0) padChord(hzChord.map(h=>h*0.5), tNext, beat*1.25, audio.nightBus);
+          if(stepIn%4===0){ bass(midiToHz(root-12), tNext, beat*1.1, audio.nightBus); }
+          if(Math.random()<.45){ const deg=arpPat[stepIn]; const note=chord[deg]+(Math.random()<.25?12:0); arp(midiToHz(note), tNext, step*.95, audio.nightBus); }
+          if(Math.random()<.12 && stepIn>0){ const bellMidi=chord[(stepIn%3)]+12; bell(midiToHz(bellMidi), tNext+step*.5, step, audio.nightBus); }
+          tNext+=step; idx++;
         }
       }
-      audio.nightSched = setInterval(schedule, lookahead);
+      audio.nightSched=setInterval(schedule, look);
     }
 
-    // Crossfade zu Nacht
     function beginNightMode(){
       if (!audio.started) return;
       startNightMusic();
-      audio.mode = "night";
-      // sanfte Überblendung
-      const now = audio.ctx.currentTime;
+      const now=audio.ctx.currentTime;
+      audio.mode="night";
       audio.dayBus.gain.cancelScheduledValues(now);
       audio.nightBus.gain.cancelScheduledValues(now);
       audio.dayBus.gain.setValueAtTime(audio.dayBus.gain.value, now);
       audio.nightBus.gain.setValueAtTime(audio.nightBus.gain.value, now);
-      audio.dayBus.gain.linearRampToValueAtTime(0.0, now + 6.0);
-      audio.nightBus.gain.linearRampToValueAtTime(0.35, now + 6.0);
+      audio.dayBus.gain.linearRampToValueAtTime(0.0, now+6.0);
+      audio.nightBus.gain.linearRampToValueAtTime(0.35, now+6.0);
     }
 
-    // Sichtbarkeit: pausieren für Akku/CPU
-    document.addEventListener('visibilitychange', ()=>{
-      audio.visible = !document.hidden;
-    });
+    document.addEventListener('visibilitychange', ()=>{ audio.visible = !document.hidden; });
 
-    // ---- SFX (wie gehabt) ----
     function now(){ return audio.ctx.currentTime; }
-    function noise(t,len=.12,g=.7){
-      const buf=audio.ctx.createBuffer(1, Math.floor(audio.ctx.sampleRate*len), audio.ctx.sampleRate);
-      const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
-      const s=audio.ctx.createBufferSource(); s.buffer=buf; const v=audio.ctx.createGain(); v.gain.value=g; s.connect(v); v.connect(audio.sfx); s.start(t);
-    }
+    function noise(t,len=.12,g=.7){ const buf=audio.ctx.createBuffer(1, Math.floor(audio.ctx.sampleRate*len), audio.ctx.sampleRate); const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length); const s=audio.ctx.createBufferSource(); s.buffer=buf; const v=audio.ctx.createGain(); v.gain.value=g; s.connect(v); v.connect(audio.sfx); s.start(t); }
     window.sfxInvalid=function(){ if(!audio.started||audio.muted) return; const t=now(); const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(220,t); o.frequency.exponentialRampToValueAtTime(80,t+.24); v.gain.setValueAtTime(.0001,t); v.gain.exponentialRampToValueAtTime(1.0,t+.012); v.gain.exponentialRampToValueAtTime(.0001,t+.32); o.connect(v); v.connect(audio.sfx); o.start(t); o.stop(t+.34); };
     window.sfxValid=function(){ if(!audio.started||audio.muted) return; const t=now(); [880,988,1175].forEach((f,i)=>{ const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='triangle'; o.frequency.value=f; v.gain.setValueAtTime(.0001,t+i*.05); v.gain.linearRampToValueAtTime(.45-i*.1,t+i*.05+.02); v.gain.exponentialRampToValueAtTime(.0001,t+i*.05+.3); o.connect(v); v.connect(audio.sfx); o.start(t+i*.05); o.stop(t+i*.05+.32); }); };
     window.sfxBig=function(){ if(!audio.started||audio.muted) return; const t=now(); [988,1175,1319,1568].forEach((f,i)=>{ const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sine'; o.frequency.value=f; v.gain.setValueAtTime(.0001,t+i*.05); v.gain.linearRampToValueAtTime(.55-i*.08,t+i*.05+.02); v.gain.exponentialRampToValueAtTime(.0001,t+i*.05+.36); o.connect(v); v.connect(audio.sfx); o.start(t+i*.05); o.stop(t+i*.05+.4); }); };
@@ -849,7 +722,6 @@ async function useKitty(r,c){
     window.sfxBomb=function(){ if(!audio.started||audio.muted) return; const t=now(); noise(t,.12,.8); const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(660,t); o.frequency.exponentialRampToValueAtTime(330,t+.12); v.gain.setValueAtTime(.0001,t); v.gain.linearRampToValueAtTime(.35,t+.02); v.gain.exponentialRampToValueAtTime(.0001,t+.2); o.connect(v); v.connect(audio.sfx); o.start(t); o.stop(t+.22); };
     window.sfxJoker=function(){ if(!audio.started||audio.muted) return; const t=now(); const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(880,t); o.frequency.exponentialRampToValueAtTime(330,t+.18); v.gain.setValueAtTime(.0001,t); v.gain.linearRampToValueAtTime(.5,t+.02); v.gain.exponentialRampToValueAtTime(.0001,t+.36); o.connect(v); v.connect(audio.sfx); o.start(t); o.stop(t+.38); };
 
-    // Sound-Button
     const btn=document.getElementById('toggleSound');
     if(btn) btn.addEventListener('click', ()=>{
       if(!audio.started && !audio.muted) ensure();
@@ -860,7 +732,6 @@ async function useKitty(r,c){
       btn.textContent = audio.muted? '🔈 Sound aus' : '🔊 Sound an';
     });
 
-    // Autostart der Engine beim ersten Interaktions-Event (Mobile-kompatibel)
     ['pointerdown','keydown','touchstart'].forEach(ev=>
       window.addEventListener(ev, ()=>{ if(!audio.started && !(audio.muted)) ensure(); }, {once:true, passive:true})
     );
@@ -871,6 +742,168 @@ async function useKitty(r,c){
 init();
 window.addEventListener('resize', draw);
 document.getElementById('new')?.addEventListener('click', ()=>{ if (typeof ensureAudio==='function') ensureAudio(); init(); });
+</script>
+
+<!-- ===== Firebase Leaderboard (ESM) ===== -->
+<script type="module">
+  // Firebase v10+ ESM Imports
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAnalytics, isSupported as analyticsSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+  import { getAuth, onAuthStateChanged, signInAnonymously, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import {
+    getFirestore, doc, setDoc, getDoc, updateDoc, collection,
+    query, orderBy, limit, onSnapshot, startAfter, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // --- Deine Firebase Config ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyArqwFEi1afYtkPTbGuA0PiwJsHmBuJhos",
+    authDomain: "schnipels-casino.firebaseapp.com",
+    projectId: "schnipels-casino",
+    storageBucket: "schnipels-casino.firebasestorage.app",
+    messagingSenderId: "233562090178",
+    appId: "1:233562090178:web:520c0e28b295308527e95b",
+    measurementId: "G-EJPHEFBSDX"
+  };
+
+  // --- Init ---
+  const app = initializeApp(firebaseConfig);
+  try { if (await analyticsSupported()) getAnalytics(app); } catch(e){ /* okay */ }
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // --- State ---
+  let currentUser = null;
+  let liveUnsub = null;
+  let lastVisibleDoc = null;
+
+  // --- Helpers ---
+  function randomName(){
+    const animals = ["Tiger","Panda","Fuchs","Hase","Bär","Koala","Einhorn","Drache","Katze","Delfin"];
+    const adj = ["Schnell","Glücklich","Kuchen","Turbo","Pixel","Candy","Lucky","Gold","Magic","Sweet"];
+    const a = adj[Math.random()*adj.length|0];
+    const b = animals[Math.random()*animals.length|0];
+    const n = (1000+(Math.random()*9000|0));
+    return `${a}${b}${n}`;
+  }
+  function getLocalName(){ return localStorage.getItem("playerName") || ""; }
+  function setLocalName(name){ localStorage.setItem("playerName", name); }
+
+  async function ensureUserDoc(uid){
+    const ref = doc(db, "scores", uid);
+    const snap = await getDoc(ref);
+    const name = getLocalName() || randomName();
+    if (!snap.exists()){
+      await setDoc(ref, {
+        name,
+        score: Number(localStorage.getItem("kitty-best")||0),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } else {
+      // Name local (falls leer) übernehmen
+      if (!getLocalName()){ setLocalName(snap.data().name || name); }
+    }
+    // UI Feld setzen
+    const nameInput = document.getElementById("nameInput");
+    if (nameInput) nameInput.value = getLocalName();
+  }
+
+  async function submitBest(best){
+    if (!currentUser) return;
+    try{
+      const ref = doc(db, "scores", currentUser.uid);
+      await setDoc(ref, {
+        name: getLocalName() || randomName(),
+        score: Number(best),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch(e){ console.error("submitBest failed", e); }
+  }
+
+  // Hook vom Game (Event)
+  window.addEventListener('best-changed', (ev)=> submitBest(ev.detail.best));
+  // Alternativ-Hook (falls direkt aufgerufen wird)
+  window.onBestChanged = submitBest;
+
+  function renderRows(docs, append=false){
+    const body = document.getElementById("lbBody");
+    if (!append) body.innerHTML = "";
+    if (docs.length === 0 && !append){
+      body.innerHTML = `<tr><td colspan="3" class="lb-empty">Noch keine Einträge.</td></tr>`;
+      return;
+    }
+    let rankOffset = body.querySelectorAll("tr").length;
+    docs.forEach((docSnap, i)=>{
+      const d = docSnap.data();
+      const tr = document.createElement("tr");
+      const isMe = currentUser && docSnap.id === currentUser.uid;
+      if (isMe) tr.classList.add("lb-me");
+      tr.innerHTML = `
+        <td class="lb-rank">${(rankOffset+i+1)}</td>
+        <td>${(d.name||"Unbekannt")}</td>
+        <td class="lb-score">${Number(d.score||0)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  function startLiveTop(){
+    const q = query(collection(db, "scores"), orderBy("score","desc"), limit(100));
+    if (liveUnsub) liveUnsub();
+    liveUnsub = onSnapshot(q, (snap)=>{
+      lastVisibleDoc = snap.docs[snap.docs.length-1] || null;
+      renderRows(snap.docs, false);
+    });
+  }
+
+  async function loadMore(){
+    if (!lastVisibleDoc){ return; }
+    const qMore = query(collection(db,"scores"), orderBy("score","desc"), startAfter(lastVisibleDoc), limit(100));
+    const snap = await getDocs(qMore);
+    if (!snap.empty){
+      lastVisibleDoc = snap.docs[snap.docs.length-1];
+      renderRows(snap.docs, true);
+    }
+  }
+
+  // UI Bindings
+  document.getElementById("saveNameBtn").addEventListener("click", async ()=>{
+    const input = document.getElementById("nameInput");
+    const name = (input.value || "").trim().slice(0,24);
+    if (!name || !currentUser) return;
+    try{
+      setLocalName(name);
+      await setDoc(doc(db,"scores", currentUser.uid), { name, updatedAt: serverTimestamp() }, { merge:true });
+    }catch(e){ console.error(e); }
+  });
+  document.getElementById("loadMoreBtn").addEventListener("click", loadMore);
+
+  // Start/Stop Live sobald Panel geöffnet/geschlossen wird
+  window.addEventListener("leaderboard-open", startLiveTop);
+  window.addEventListener("leaderboard-close", ()=>{ if (liveUnsub){ liveUnsub(); liveUnsub=null; } });
+
+  // Auth
+  onAuthStateChanged(auth, async (user)=>{
+    if (user){
+      currentUser = user;
+      await ensureUserDoc(user.uid);
+    } else {
+      try{
+        await signInAnonymously(auth);
+      }catch(e){
+        console.error("Anonymous sign-in failed", e);
+      }
+    }
+  });
+
+  // Für iOS/Autoplay ähnliche Verhalten: bei erster Interaktion sicherstellen
+  ["pointerdown","touchstart","keydown"].forEach(ev=>{
+    window.addEventListener(ev, ()=>{
+      if (!auth.currentUser){
+        signInAnonymously(auth).catch(()=>{});
+      }
+    }, { once:true, passive:true });
+  });
 </script>
 </body>
 </html>
