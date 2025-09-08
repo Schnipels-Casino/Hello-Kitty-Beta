@@ -3,9 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="asset-base" content="./assets/">
   <title>Hello Kitty Match-3 — Tools + Charges + Badges (Bomb per 5)</title>
-  <link rel="icon" href="./assets/logo.png" />
   <style>
     :root{ --gap:8px; --radius:16px; --ink:#1a1333; --muted:#7b6a84; --accent:#ef5da8; --accent2:#60a5fa; }
     *{ box-sizing:border-box }
@@ -70,13 +68,14 @@
 
     .tile{
       position:absolute; z-index:1; width:60px; height:60px;
-      background-size:contain; background-repeat:no-repeat; background-position:center;
+      display:grid; place-items:center; /* für Emojis */
       border-radius:14px; background-color: rgba(255,255,255,0.08);
       border:1px solid rgba(255,255,255,0.18);
       box-shadow: 0 6px 16px rgba(0,0,0,.25);
       transition: transform .18s ease, opacity .2s ease;
       will-change: transform, opacity;
       user-select:none; backdrop-filter: blur(2px);
+      line-height:1; /* Emoji sauber zentrieren */
     }
     .tile.selected{ outline:3px solid var(--accent2); box-shadow: 0 10px 22px rgba(96,165,250,.35); }
     .tile.match{ animation: pop .22s ease-out forwards; }
@@ -147,17 +146,12 @@
   </div>
 
 <script>
-
-
 'use strict';
-const TILE_FILES = [
-  "badtemaru.png","cinnamoroll.png","hello_kitty.png","keroppi.png",
-  "kuromi.png","pochacco.png","purin.png","tuxedo_sam.png"
-];
-const ASSET_BASE = (document.querySelector('meta[name="asset-base"]')?.content) || "./assets/";
-const IMAGES = TILE_FILES.map(f => ASSET_BASE + f.split("/").pop());
 
-const COLS = 8, ROWS = 8, TYPES = IMAGES.length;
+/* --- Emojis statt Bilder --- */
+const EMOJIS = ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼"];
+
+const COLS = 8, ROWS = 8, TYPES = EMOJIS.length;
 let board = [];
 let score = 0;
 let best = +(localStorage.getItem("kitty-best")||0);
@@ -244,9 +238,10 @@ function draw(){
     for (let c=0;c<COLS;c++){
       const t = document.createElement("div");
       t.className = "tile";
-      t.style.backgroundImage = `url(${IMAGES[board[r][c]]})`;
+      t.textContent = EMOJIS[board[r][c]];
       t.style.left = (c*step) + "px"; t.style.top  = (r*step) + "px";
       t.style.width = tile + "px"; t.style.height= tile + "px";
+      t.style.fontSize = (tile*0.7) + "px";    // Emoji sauber skalieren
       t.dataset.r = r; t.dataset.c = c;
       elBoard.appendChild(t);
     }
@@ -310,7 +305,6 @@ async function attemptSwap(a,b){
       swap(a,b);
     } else {
       const runLen = (typeof largestMatchLen==='function' ? largestMatchLen() : 3);
-      // rocket awarding is now done in resolveMatches by exact 4-runs
       const big = runLen >= 4;
       if (big && typeof sfxBig==='function') sfxBig();
       else if (typeof sfxValid==='function') sfxValid();
@@ -337,7 +331,6 @@ function findMatches(){
   }
   return clear;
 }
-
 
 function findClusters(){
   const clusters = [];
@@ -397,7 +390,7 @@ async function resolveMatches(skipDraw=false){
   let totalCleared = 0; chain = 0;
   while (true){
     const toClear = findMatches();
-    // === Awarding (early, based on current clusters) ===
+    // Award based on clusters
     (function(){
       const clusters = (typeof findClusters==='function') ? findClusters() : [];
       let triples=0, fours=0, fives=0;
@@ -406,12 +399,9 @@ async function resolveMatches(skipDraw=false){
         else if (cl.length === 4) fours++;
         else if (cl.length === 3) triples++;
       }
-      // Dreier-Cluster zählen zu Kitty-Fortschritt
       kittyProgress += triples;
       while (kittyProgress >= 15){ kittyProgress -= 15; unlockKitty(); }
-      // Exakt 4er geben Raketen
       for (let i=0;i<fours;i++) unlockRocket();
-      // 5er oder mehr geben Bomben
       for (let i=0;i<fives;i++) unlockBomb();
     })();
 
@@ -429,7 +419,7 @@ async function resolveMatches(skipDraw=false){
     }
     draw(); await sleep(140);
     totalCleared += toClear.size;
-    }
+  }
   if (totalCleared>0){
     const points = totalCleared * 10 * Math.max(1, chain*0.9);
     updateScore(points|0);
@@ -559,8 +549,7 @@ async function useKitty(r,c){
   } finally { busy = false; }
 }
 
-
-// Starfield lightweight
+// Starfield
 (function(){
   try{
     const cvs=document.getElementById('starfield'); if(!cvs) return;
@@ -568,7 +557,7 @@ async function useKitty(r,c){
     window.addEventListener('resize', fit); fit(); (function loop(t){ ctx.clearRect(0,0,cvs.width,cvs.height); for(const s of stars){ const a=.5+.5*Math.sin(t*.001+s.t); ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,'+a+')'; ctx.fill(); s.x+=.02; s.y+=.01; if(s.x>innerWidth)s.x=0; if(s.y>innerHeight)s.y=0;} requestAnimationFrame(loop); })();
   }catch(e){}
 })();
-// Minimal Audio Engine + SFX
+// Audio
 (function(){
   try{
     const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
@@ -591,17 +580,11 @@ async function useKitty(r,c){
   }catch(e){}
 })();
 
-// preload images then start
-(async () => {
-  try { await Promise.all(IMAGES.map(src => new Promise(r=>{ const i=new Image(); i.onload=r; i.onerror=r; i.src=src; }))); } catch(e){ console.error(e); }
-  init();
-})();
+// Start (ohne Image-Preload)
+init();
 window.addEventListener('resize', draw);
 const newBtn = document.getElementById('new');
 if (newBtn) newBtn.addEventListener('click', ()=>{ if (typeof ensureAudio==='function') ensureAudio(); init(); });
-
-
-
 </script>
 </body>
 </html>
