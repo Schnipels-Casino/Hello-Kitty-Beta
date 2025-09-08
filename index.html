@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Match-3 — Tools + Charges + Badges</title>
+  <title>Match-3 — Endless</title>
   <style>
     :root{ --gap:8px; --radius:16px; --ink:#1a1333; --muted:#7b6a84; --accent:#ef5da8; --accent2:#60a5fa; }
     *{ box-sizing:border-box }
@@ -109,8 +109,6 @@
     @keyframes bombPop{ 0%{ transform:scale(1) } 50%{ transform:scale(1.25) rotate(8deg) } 100%{ transform:scale(0.1); opacity:0 } }
     .tile.kitty-pop{ animation: kittyPop .28s ease-out forwards; }
     @keyframes kittyPop{ 0%{ transform:scale(1) } 60%{ transform:scale(1.25) rotate(-6deg)} 100%{ transform:scale(0.1); opacity:0 } }
-    #board.rewind{ animation: rewindFx .35s ease-in-out; }
-    @keyframes rewindFx{ 0%{ filter: hue-rotate(0deg) saturate(1);} 50%{ filter:hue-rotate(25deg) saturate(1.3);} 100%{ filter:hue-rotate(0deg) saturate(1);} }
 
     footer{ display:flex; justify-content:center; padding:6px 0; }
     .info-panel{
@@ -151,8 +149,6 @@
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <circle cx="10" cy="14" r="6" fill="currentColor"/>
             <path d="M14 6l2-2 3 3-2 2" stroke="currentColor" stroke-width="2" fill="none"/>
-            <svg>
-            </svg>
             <circle cx="20" cy="4" r="1" fill="currentColor"/>
           </svg>
           <span class="badge" id="countBomb">0</span>
@@ -167,7 +163,6 @@
         </button>
       </div>
       <div class="hud">
-        <!-- Ziel entfernt (Endless Mode) -->
         <button class="btn" id="new">Neu starten</button>
         <button class="btn" id="toggleSound" aria-pressed="true">🔊 Sound an</button>
       </div>
@@ -223,12 +218,12 @@ elBest.textContent = best;
 
 const sleep = (ms)=> new Promise(r => setTimeout(r, ms));
 
-/* Geometrie: Innenrand = Lücke */
+/* Innenrand = Lücke für cleanen Board-Rand */
 function stepPx(){
   const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 8;
   const W = elBoard.clientWidth;
   const pad = gap;
-  return (W - 2*pad + gap) / COLS; // Schritt inkl. Lücke, mit Innenrand
+  return (W - 2*pad + gap) / COLS;
 }
 function randType(){ return (Math.random()*TYPES)|0; }
 
@@ -333,7 +328,7 @@ elBoard.addEventListener('pointerdown', (e)=>{
   gesture = { id: e.pointerId, startX: e.clientX, startY: e.clientY, r: cell.r, c: cell.c };
   const t = getTileEl(cell.r, cell.c); if (t) t.classList.add('selected');
   elBoard.setPointerCapture(e.pointerId);
-}, {passive:false});
+}, {passive:true});
 elBoard.addEventListener('pointerup', async (e)=>{
   if (!gesture || e.pointerId !== gesture.id) return;
   const {r,c,startX,startY} = gesture; gesture = null;
@@ -358,7 +353,7 @@ elBoard.addEventListener('pointerup', async (e)=>{
     if (dy>0 && r<ROWS-1) await attemptSwap({r,c},{r:r+1,c});
     else if (dy<0 && r>0) await attemptSwap({r,c},{r:r-1,c});
   }
-}, {passive:false});
+}, {passive:true});
 elBoard.addEventListener('pointercancel', (e)=>{ if (gesture && e.pointerId===gesture.id) gesture=null; });
 
 async function attemptSwap(a,b){
@@ -568,7 +563,6 @@ async function useRocket(col){
     }
     await sleep(260 + ROWS*30);
     for (let r=0;r<ROWS;r++) board[r][col] = -1;
-    for (let c=0;c+C(0);c++){/* dummy */}
     for (let c=0;c<COLS;c++){
       let write = ROWS-1;
       for (let r=ROWS-1;r>=0;r--){
@@ -641,11 +635,18 @@ async function useKitty(r,c){
   }catch(e){}
 })();
 
-/* ====== Audio Engine (neue, abwechslungsreiche Hintergrundmusik) ====== */
+/* ====== Audio Engine: Tag → Nacht (mobile-optimiert) ====== */
 (function(){
   try{
     const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
-    const audio={ctx:null, master:null, bg:null, sfx:null, started:false, muted:false, scheduler:null};
+    const audio={
+      ctx:null, master:null, sfx:null,
+      music:null, dayBus:null, nightBus:null,
+      dry:null, delay:null, fb:null, wet:null,
+      started:false, muted:false, mode:"day",
+      daySched:null, nightSched:null, crossTimer:null,
+      visible:true
+    };
     window.audio = audio;
 
     function midiToHz(m){ return 440 * Math.pow(2, (m-69)/12); }
@@ -654,66 +655,71 @@ async function useKitty(r,c){
       if(audio.started) return;
       audio.ctx = new AC();
 
-      // Busses
-      audio.master = audio.ctx.createGain();
-      audio.master.gain.value = .8;
+      // Master & Busses
+      audio.master = audio.ctx.createGain(); audio.master.gain.value = .8;
+      audio.sfx    = audio.ctx.createGain();
 
-      audio.bg = audio.ctx.createGain();    // Musik-Bus
-      audio.sfx = audio.ctx.createGain();   // Effekte-Bus
+      audio.music  = audio.ctx.createGain();
+      audio.dayBus = audio.ctx.createGain();   audio.dayBus.gain.value = 0.9;
+      audio.nightBus = audio.ctx.createGain(); audio.nightBus.gain.value = 0.0;
+      audio.dayBus.connect(audio.music);
+      audio.nightBus.connect(audio.music);
 
-      // Sanfter Ping-Pong-ähnlicher Delay (einfach)
-      const bgDry = audio.ctx.createGain(); bgDry.gain.value = 0.85;
-      const delay = audio.ctx.createDelay(1.0); delay.delayTime.value = 0.32;
-      const fb = audio.ctx.createGain(); fb.gain.value = 0.28;
-      const wet = audio.ctx.createGain(); wet.gain.value = 0.18;
+      // Leichter Delay (Ping-Pong-artig, low CPU)
+      audio.dry   = audio.ctx.createGain(); audio.dry.gain.value = 0.85;
+      audio.delay = audio.ctx.createDelay(1.0); audio.delay.delayTime.value = 0.28;
+      audio.fb    = audio.ctx.createGain(); audio.fb.gain.value = 0.22;
+      audio.wet   = audio.ctx.createGain(); audio.wet.gain.value = 0.18;
 
-      audio.bg.connect(bgDry);
-      audio.bg.connect(delay);
-      delay.connect(fb); fb.connect(delay); // Feedback
-      delay.connect(wet);
+      audio.music.connect(audio.dry);
+      audio.music.connect(audio.delay);
+      audio.delay.connect(audio.fb); audio.fb.connect(audio.delay);
+      audio.delay.connect(audio.wet);
 
-      // Verkabeln
-      bgDry.connect(audio.master);
-      wet.connect(audio.master);
+      audio.dry.connect(audio.master);
+      audio.wet.connect(audio.master);
       audio.sfx.connect(audio.master);
       audio.master.connect(audio.ctx.destination);
 
-      startMusic();
+      startDayMusic();
+      // Auto-Nachtmodus nach 2 Minuten
+      audio.crossTimer = setTimeout(beginNightMode, 120000);
+
       audio.started = true;
     }
     window.ensureAudio = ensure;
 
-    // ----- Instrumente -----
-    function playTone({type="triangle", hz=440, t=0, dur=.5, gain=.2, cutoff=1500, target=audio.bg}){
+    // ---------- Instrumente (leicht & sparsam) ----------
+    function playTone({type="triangle", hz=440, t=0, dur=.5, gain=.2, cutoff=1500, target=audio.dayBus}){
       const o = audio.ctx.createOscillator();
       o.type = type; o.frequency.setValueAtTime(hz, t);
       const f = audio.ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.setValueAtTime(cutoff, t);
       const v = audio.ctx.createGain();
       v.gain.setValueAtTime(0.0001, t);
-      // ADSR: A=0.02, D=0.08, S=0.35, R=0.25*dur
       v.gain.linearRampToValueAtTime(gain, t+0.02);
-      v.gain.exponentialRampToValueAtTime(gain*0.35, t+0.10);
-      v.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.12, dur*0.9));
-
+      v.gain.exponentialRampToValueAtTime(Math.max(0.0001,gain*0.35), t+Math.min(0.12,dur*0.4));
+      v.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.18, dur*0.9));
       o.connect(f); f.connect(v); v.connect(target);
       o.start(t); o.stop(t+dur+0.05);
     }
-    function bass(hz, t, beat){ playTone({type:"sine", hz:hz*0.5, t, dur:beat*0.95, gain:.22, cutoff:700}); }
-    function arp(hz, t, stepDur){ playTone({type:"triangle", hz, t, dur:stepDur*0.98, gain:.14, cutoff:1800}); }
-    function padChord(hzList, t, beat){
-      hzList.forEach((hz,i)=> playTone({type:"sawtooth", hz, t, dur:beat*3.6, gain:.06, cutoff:900 + i*120}));
+    function bass(hz, t, beat, target){ playTone({type:"sine", hz:hz*0.5, t, dur:beat*0.95, gain:.22, cutoff:700, target}); }
+    function arp(hz, t, stepDur, target){ playTone({type:"triangle", hz, t, dur:stepDur*0.98, gain:.14, cutoff:1800, target}); }
+    function padChord(hzList, t, beat, target){
+      hzList.forEach((hz,i)=> playTone({type:"sawtooth", hz, t, dur:beat*3.6, gain:.055, cutoff:900 + i*120, target}));
     }
-    function sparkle(hz, t, stepDur){ playTone({type:"square", hz, t, dur:stepDur*0.8, gain:.10, cutoff:2200}); }
+    function bell(hz, t, stepDur, target){
+      // kurzer "Candy"-Bell
+      playTone({type:"square", hz, t, dur:stepDur*0.8, gain:.10, cutoff:2400, target});
+    }
 
-    // ----- Scheduler (inspir. Candy Crush: längere Progression + Arp) -----
-    function startMusic(){
+    // ---------- Day Track ----------
+    function startDayMusic(){
       const bpm = 96;
-      const beat = 60/bpm;        // Viertel
-      const step = beat/2;        // Achtel
-      const scheduleAhead = 0.25; // Sekunden
+      const beat = 60/bpm;
+      const step = beat/2;
       const lookahead = 25;       // ms
+      const scheduleAhead = 0.25; // s
 
-      // 8-Takte Progression (je 1 Takt)
       const progression = [
         [60,64,67], // C
         [57,60,64], // Am
@@ -724,12 +730,12 @@ async function useKitty(r,c){
         [53,57,60], // F
         [55,59,62], // G
       ];
-
-      const arpPattern = [0,1,2,1,0,1,2,1]; // Achtel pro Takt
+      const arpPattern = [0,1,2,1,0,1,2,1];
       let nextTime = audio.ctx.currentTime + 0.1;
       let stepIndex = 0;
 
       function schedule(){
+        if (!audio.visible) return;
         while (nextTime < audio.ctx.currentTime + scheduleAhead){
           const bar = Math.floor(stepIndex / 8);
           const stepInBar = stepIndex % 8;
@@ -737,36 +743,99 @@ async function useKitty(r,c){
           const root = chord[0];
           const hzChord = chord.map(m=>midiToHz(m));
 
-          // Pad zu Taktbeginn
-          if (stepInBar === 0){
-            padChord(hzChord.map(h=>h*0.5), nextTime, beat);
-          }
-          // Bass auf den Zählzeiten (Viertel)
+          if (stepInBar === 0){ padChord(hzChord.map(h=>h*0.5), nextTime, beat, audio.dayBus); }
           if (stepInBar % 2 === 0){
             const bassNote = midiToHz(root - 12 + (Math.random()<0.2? -12:0));
-            bass(bassNote, nextTime, beat);
+            bass(bassNote, nextTime, beat, audio.dayBus);
           }
-          // Arpeggio (Achtel) mit Variation
           const deg = arpPattern[stepInBar % arpPattern.length];
           let noteMidi = chord[deg] + (Math.random()<0.35 ? 12 : 0);
-          // Kleine Chance auf Durchgangston
           if (Math.random()<0.12) noteMidi += (Math.random()<0.5? -2:2);
-          arp(midiToHz(noteMidi), nextTime, step);
+          arp(midiToHz(noteMidi), nextTime, step, audio.dayBus);
 
-          // Kleine Glitzer-Note sporadisch
           if (Math.random()<0.18 && stepInBar!==0){
             const sp = chord[(deg+1)%3] + 12 + (Math.random()<0.4?12:0);
-            sparkle(midiToHz(sp), nextTime + step*0.5, step);
+            bell(midiToHz(sp), nextTime + step*0.5, step, audio.dayBus);
           }
-
-          nextTime += step;
-          stepIndex++;
+          nextTime += step; stepIndex++;
         }
       }
-      audio.scheduler = setInterval(schedule, lookahead);
+      audio.daySched = setInterval(schedule, lookahead);
     }
 
-    // ---- SFX (unverändert) ----
+    // ---------- Night Track (ruhig, langsamer, weiche Pads) ----------
+    function startNightMusic(){
+      if (audio.nightSched) return;
+      const bpm = 72;
+      const beat = 60/bpm;
+      const step = beat/2;
+      const lookahead = 30;        // ms (langsamer)
+      const scheduleAhead = 0.35;  // s
+
+      const progression = [
+        [57,60,64], // Am
+        [53,57,60], // F
+        [60,64,67], // C
+        [55,59,62], // G
+      ];
+      const arpPattern = [0,1,1,2,1,0,0,1]; // seltener Wechsel
+
+      let nextTime = audio.ctx.currentTime + 0.1;
+      let stepIndex = 0;
+
+      function schedule(){
+        if (!audio.visible) return;
+        while (nextTime < audio.ctx.currentTime + scheduleAhead){
+          const bar = Math.floor(stepIndex / 8);
+          const stepInBar = stepIndex % 8;
+          const chord = progression[bar % progression.length];
+          const root = chord[0];
+          const hzChord = chord.map(m=>midiToHz(m));
+
+          // Längere Pads, kein ständiger Arp
+          if (stepInBar === 0){ padChord(hzChord.map(h=>h*0.5), nextTime, beat*1.25, audio.nightBus); }
+          if (stepInBar % 4 === 0){
+            const b = midiToHz(root - 12);
+            bass(b, nextTime, beat*1.1, audio.nightBus);
+          }
+          // Arp nur gelegentlich
+          if (Math.random() < 0.45){
+            const deg = arpPattern[stepInBar];
+            const note = chord[deg] + (Math.random()<0.25?12:0);
+            arp(midiToHz(note), nextTime, step*0.95, audio.nightBus);
+          }
+          // Dezenter Glitzer noch seltener
+          if (Math.random() < 0.12 && stepInBar>0){
+            const bellMidi = chord[(stepInBar%3)] + 12;
+            bell(midiToHz(bellMidi), nextTime + step*0.5, step, audio.nightBus);
+          }
+          nextTime += step; stepIndex++;
+        }
+      }
+      audio.nightSched = setInterval(schedule, lookahead);
+    }
+
+    // Crossfade zu Nacht
+    function beginNightMode(){
+      if (!audio.started) return;
+      startNightMusic();
+      audio.mode = "night";
+      // sanfte Überblendung
+      const now = audio.ctx.currentTime;
+      audio.dayBus.gain.cancelScheduledValues(now);
+      audio.nightBus.gain.cancelScheduledValues(now);
+      audio.dayBus.gain.setValueAtTime(audio.dayBus.gain.value, now);
+      audio.nightBus.gain.setValueAtTime(audio.nightBus.gain.value, now);
+      audio.dayBus.gain.linearRampToValueAtTime(0.0, now + 6.0);
+      audio.nightBus.gain.linearRampToValueAtTime(0.35, now + 6.0);
+    }
+
+    // Sichtbarkeit: pausieren für Akku/CPU
+    document.addEventListener('visibilitychange', ()=>{
+      audio.visible = !document.hidden;
+    });
+
+    // ---- SFX (wie gehabt) ----
     function now(){ return audio.ctx.currentTime; }
     function noise(t,len=.12,g=.7){
       const buf=audio.ctx.createBuffer(1, Math.floor(audio.ctx.sampleRate*len), audio.ctx.sampleRate);
@@ -779,7 +848,6 @@ async function useKitty(r,c){
     window.sfxRocket=function(){ if(!audio.started||audio.muted) return; const t=now(); const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(220,t); o.frequency.exponentialRampToValueAtTime(880,t+.3); v.gain.setValueAtTime(.0001,t); v.gain.linearRampToValueAtTime(.6,t+.05); v.gain.exponentialRampToValueAtTime(.0001,t+.5); o.connect(v); v.connect(audio.sfx); o.start(t); o.stop(t+.5); };
     window.sfxBomb=function(){ if(!audio.started||audio.muted) return; const t=now(); noise(t,.12,.8); const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(660,t); o.frequency.exponentialRampToValueAtTime(330,t+.12); v.gain.setValueAtTime(.0001,t); v.gain.linearRampToValueAtTime(.35,t+.02); v.gain.exponentialRampToValueAtTime(.0001,t+.2); o.connect(v); v.connect(audio.sfx); o.start(t); o.stop(t+.22); };
     window.sfxJoker=function(){ if(!audio.started||audio.muted) return; const t=now(); const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(880,t); o.frequency.exponentialRampToValueAtTime(330,t+.18); v.gain.setValueAtTime(.0001,t); v.gain.linearRampToValueAtTime(.5,t+.02); v.gain.exponentialRampToValueAtTime(.0001,t+.36); o.connect(v); v.connect(audio.sfx); o.start(t); o.stop(t+.38); };
-    window.sfxKitty=function(){ if(!audio.started||audio.muted) return; const t=now(); [1047,1319,1568].forEach((f,i)=>{ const o=audio.ctx.createOscillator(); const v=audio.ctx.createGain(); o.type='sine'; o.frequency.value=f; v.gain.setValueAtTime(.0001,t+i*.05); v.gain.linearRampToValueAtTime(.45-i*.1,t+i*.05+.02); v.gain.exponentialRampToValueAtTime(.0001,t+i*.05+.3); o.connect(v); v.connect(audio.sfx); o.start(t+i*.05); o.stop(t+i*.05+.34); }); };
 
     // Sound-Button
     const btn=document.getElementById('toggleSound');
@@ -792,7 +860,7 @@ async function useKitty(r,c){
       btn.textContent = audio.muted? '🔈 Sound aus' : '🔊 Sound an';
     });
 
-    // Autostart der Engine beim ersten Interaktions-Event (ohne Autoplay)
+    // Autostart der Engine beim ersten Interaktions-Event (Mobile-kompatibel)
     ['pointerdown','keydown','touchstart'].forEach(ev=>
       window.addEventListener(ev, ()=>{ if(!audio.started && !(audio.muted)) ensure(); }, {once:true, passive:true})
     );
