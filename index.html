@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Emoji Match 3 — Coming Soon | JK Games</title>
-  <meta name="description" content="Vorschau-Seite zu Emoji Match 3 (E.M.3) mit Regeln & AGB-Gate, Mini‑Game, Live Top‑5 und animiertem Hintergrund.">
+  <meta name="description" content="Vorschau-Seite zu Emoji Match 3 (E.M.3) mit Regeln & AGB-Gate, Mini‑Game, Tic‑Tac‑Toe vs Bot, Live Top‑5 und animiertem Hintergrund.">
   <style>
     :root{
       --bg:#0b1020;
@@ -15,6 +15,8 @@
       --accent2:#00d1ff;
       --shadow: 0 10px 30px rgba(0,0,0,.35);
       --radius: 18px;
+      --tttCellMin: 74px; /* base cell size */
+      --tttGridMax: 360px; /* base grid width */
     }
 
     *{box-sizing:border-box}
@@ -27,6 +29,7 @@
                   linear-gradient(180deg, var(--bg), var(--bg2));
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
       background-attachment: fixed;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .wrap{
@@ -45,12 +48,11 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: clamp(18px, 2.4vw, 28px);
-      position:relative; /* create stacking context */
+      position:relative;
       overflow:hidden;
-      z-index: 0; /* base */
+      z-index: 0;
     }
 
-    /* subtle glow behind everything */
     .card::before{
       content:"";
       position:absolute; inset:-2px;
@@ -58,15 +60,13 @@
       filter: blur(30px); opacity:.25; z-index:-1; pointer-events:none;
     }
 
-    /* FX canvas behind content, a bit LOWER */
     .fx{
       position:absolute; inset:0;
-      transform: translateY(28px);           /* <— Hintergrund leicht nach unten gezogen */
-      z-index: 0; pointer-events:none;       /* bleibt hinter allem drunter */
+      transform: translateY(28px);
+      z-index: 0; pointer-events:none;
     }
 
-    /* everything above this should render OVER the FX */
-    header, .hero, .grid, .game-wrap, .cta, footer { position:relative; z-index: 2; }
+    header, .hero, .grid, .game-wrap, .ttt-wrap, .cta, footer { position:relative; z-index: 2; }
 
     header{
       display:flex; align-items:center; gap:12px; justify-content:space-between;
@@ -105,7 +105,7 @@
       display:grid; grid-template-columns: repeat( auto-fit, minmax(220px, 1fr) ); gap:12px;
     }
     .feat{
-      background: rgba(255,255,255,0.06); /* minimal transparenz für den Overlay-Look */
+      background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.10);
       border-radius: 14px; padding:14px; display:flex; gap:12px; align-items:flex-start;
       backdrop-filter: blur(2px);
@@ -122,6 +122,7 @@
       background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#091317;
       box-shadow: 0 8px 22px rgba(0,150,200,.25);
       text-decoration:none; display:inline-block;
+      touch-action: manipulation;
     }
     .btn.secondary{ background: transparent; color:#e9e6ff; border:1px solid rgba(255,255,255,0.18); box-shadow:none }
     .btn.locked{ opacity:.6; cursor:not-allowed; position:relative; }
@@ -151,9 +152,7 @@
     .list li{ margin:6px 0; }
 
     .checks{ display:grid; gap:10px; margin-top:14px; }
-    .confirm{
-      display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-top:12px;
-    }
+    .confirm{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-top:12px; }
     .confirm .left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
     .accept{ opacity:.5; pointer-events:none; }
@@ -183,10 +182,62 @@
     canvas{ width:100%; height:auto; display:block; background:#0b1b2a; border-radius:10px; border:1px solid rgba(255,255,255,0.08); }
     .controls{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
     .jump-btn{ padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.06); color:#fff; font-weight:700; }
+
     .top5{ margin-top:12px; }
     .top5 h4{ margin:0 0 8px; }
     .top5 ul{ list-style:none; padding:0; margin:0; display:grid; gap:8px; }
     .top5 li{ display:flex; justify-content:space-between; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:8px 10px; }
+
+    /* --- TicTacToe styles (mobile-first smaller) --- */
+    .ttt-wrap{
+      margin-top:18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius:14px; padding:12px;
+    }
+    .ttt-header{
+      display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
+      color:var(--muted); font-size:14px;
+    }
+    .ttt-controls{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .ttt-controls select{ padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); color:#fff; }
+    .ttt-status{ margin:6px 0 10px; color:#e7e4f5; font-weight:600; font-size:14px; }
+
+    .ttt-grid{
+      display:grid; grid-template-columns: repeat(3, 1fr);
+      gap:6px;
+      max-width: min(100%, var(--tttGridMax));
+      margin: 0 auto;
+    }
+    .ttt-cell{
+      aspect-ratio: 1 / 1;
+      min-height: var(--tttCellMin);
+      display:grid; place-items:center;
+      font-weight:900; font-size: clamp(22px, 8.5vw, 36px);
+      color:#fff;
+      border-radius:10px;
+      background: rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.12);
+      cursor:pointer;
+      user-select:none;
+      touch-action: manipulation;
+    }
+    .ttt-cell:hover{ background: rgba(255,255,255,0.1); }
+    .ttt-cell.disabled{ cursor:not-allowed; opacity:.7; }
+    .ttt-cell.win{ box-shadow: 0 0 0 2px rgba(0,255,150,.5) inset, 0 0 22px rgba(0,255,150,.24); }
+    .ttt-stats{ margin-top:8px; color:var(--muted); font-size:13px; }
+
+    /* Compact tweaks for small screens */
+    @media (max-width: 480px){
+      :root{
+        --tttCellMin: 52px;
+        --tttGridMax: 280px;
+      }
+      .ttt-wrap{ padding:10px; }
+      .ttt-status{ font-size:13px; }
+      .ttt-header{ font-size:13px; }
+      .btn{ padding:10px 14px; }
+    }
 
     /* --- Redirect Modal --- */
     .modal{
@@ -349,8 +400,36 @@
         </div>
       </section>
 
+      <!-- Spaßgame: Tic Tac Toe -->
+      <section class="ttt-wrap" aria-label="Spaßgame – Tic‑Tac‑Toe">
+        <div class="ttt-header">
+          <div><strong>Spaßgame:</strong> Tic‑Tac‑Toe vs. Bot</div>
+          <div class="ttt-controls">
+            <label>Ich spiele:&nbsp;
+              <select id="tttSymbol" aria-label="Symbol wählen">
+                <option value="X">✖️ Kreuz (X)</option>
+                <option value="O">⚪ Kreis (O)</option>
+              </select>
+            </label>
+            <button class="btn" id="tttNew" type="button">Neues Spiel</button>
+          </div>
+        </div>
+        <div class="ttt-status" id="tttStatus">Du bist X. X beginnt.</div>
+        <div class="ttt-grid" id="tttGrid" role="grid" aria-label="Tic‑Tac‑Toe Brett">
+          <div class="ttt-cell" role="gridcell" data-idx="0" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="1" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="2" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="3" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="4" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="5" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="6" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="7" tabindex="0"></div>
+          <div class="ttt-cell" role="gridcell" data-idx="8" tabindex="0"></div>
+        </div>
+        <div class="ttt-stats">Siege: <span id="tttWin">0</span> • Niederlagen: <span id="tttLose">0</span> • Unentschieden: <span id="tttDraw">0</span></div>
+      </section>
+
       <div class="cta">
-        <!-- Locked look + still opens modal (hard-locked: kein Weiterleiten möglich) -->
         <a class="btn locked" id="newSiteBtn" href="https://j-k-games.github.io/Emoji-Match-1/" aria-disabled="true" title="Der Zugang ist vorübergehend gesperrt. Bitte Hinweis lesen.">Zur neuen Webseite</a>
       </div>
 
@@ -369,7 +448,7 @@
         <li><b>Optimiert:</b> Es werden <u>keine drei gleichen</u> mehr gespawnt – das Spielfeld ist <b>deutlich schwerer</b>.</li>
         <li><b>Anti‑Reset:</b> Neu laden bringt <b>keine Punkte</b> und verschafft <b>keine Vorteile</b>.</li>
         <li><b>Fairness:</b> Cheating/Tricks/Manipulation sind wirkungslos und verboten.</li>
-        <li><b>Bugs?</b> Das System wird laufend verbessert. Bitte melde Fehler unter <i>Konto → Bug Report</i>. Ich sehe die Meldungen ein und fixe sie.</li>
+        <li><b>Bugs?</b> Das System wird laufend verbessert. Bitte melde Fehler unter <i>Konto → Bug Report</i>.</li>
       </ul>
       <label class="ack"><input type="checkbox" id="readAck"> Ich habe die Hinweise gelesen und verstanden.</label>
       <div class="actions">
@@ -438,30 +517,18 @@
       const confirmRedirect = document.getElementById('confirmRedirect');
       const readAck = document.getElementById('readAck');
 
-      function openModal(e){
-        if(e){ e.preventDefault(); }
-        modal.classList.add('show');
-      }
-      function closeModal(){
-        modal.classList.remove('show');
-      }
+      function openModal(e){ if(e){ e.preventDefault(); } modal.classList.add('show'); }
+      function closeModal(){ modal.classList.remove('show'); }
 
       newSiteBtn.addEventListener('click', openModal);
       cancelRedirect.addEventListener('click', closeModal);
-      modal.addEventListener('click', (e)=>{
-        if(e.target === modal) closeModal();
-      });
+      modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
 
-      // acknowledge checkbox only toggles visual state now (keine Freischaltung)
       readAck.addEventListener('change', () => {
-        if(readAck.checked){
-          confirmRedirect.classList.remove('go');
-        } else {
-          confirmRedirect.classList.add('go');
-        }
+        if(readAck.checked){ confirmRedirect.classList.remove('go'); }
+        else{ confirmRedirect.classList.add('go'); }
       });
 
-      // Block any navigation from "Weiterleiten"
       confirmRedirect.addEventListener('click', (ev) => {
         ev.preventDefault();
         alert('Der Zugang ist aktuell gesperrt. Freischaltung folgt später.');
@@ -484,20 +551,12 @@
       resize();
       window.addEventListener('resize', resize);
 
-      // Day/Night & Weather
-      let t = 0;               // time accumulator (s)
-      let dayLen = 120;        // full cycle seconds
-      let weather = 'clear';   // 'clear' | 'rain' | 'storm'
+      let t = 0;
+      let dayLen = 120;
+      let weather = 'clear';
       let weatherTimer = 0;
 
-      // Entities
-      const birds = [];
-      const clouds = [];
-      const drops = [];
-      const walkers = [];
-      const flowers = [];
-      const trees = [];
-
+      const birds = [], clouds = [], drops = [], walkers = [], flowers = [], trees = [];
       function rnd(a,b){ return Math.random()*(b-a)+a; }
 
       function init(){
@@ -509,146 +568,68 @@
       }
       init();
 
-      let flash = 0; // lightning flash intensity 0..1
+      let flash = 0;
 
       function drawScene(dt){
         const W = canvas.width, H = canvas.height;
         ctx.clearRect(0,0,W,H);
-
-        // time of day 0..1
         t += dt;
         const tod = (t % dayLen) / dayLen;
 
-        // Sky gradient
         function mix(a,b,m){ return a + (b-a)*m; }
-        const nightTop = [10,15,35], nightBot = [25,20,55];
-        const dayTop   = [120,160,230], dayBot = [180,210,255];
+        const nightTop=[10,15,35], nightBot=[25,20,55];
+        const dayTop=[120,160,230], dayBot=[180,210,255];
         const m = Math.sin(tod * Math.PI);
-        const top = [ Math.round(mix(nightTop[0], dayTop[0], m)), Math.round(mix(nightTop[1], dayTop[1], m)), Math.round(mix(nightTop[2], dayTop[2], m)) ];
-        const bot = [ Math.round(mix(nightBot[0], dayBot[0], m)), Math.round(mix(nightBot[1], dayBot[1], m)), Math.round(mix(nightBot[2], dayBot[2], m)) ];
-        const g = ctx.createLinearGradient(0,0,0,H);
-        g.addColorStop(0, `rgb(${top[0]},${top[1]},${top[2]})`);
-        g.addColorStop(1, `rgb(${bot[0]},${bot[1]},${bot[2]})`);
-        ctx.fillStyle = g;
-        ctx.fillRect(0,0,W,H);
+        const top=[Math.round(mix(nightTop[0],dayTop[0],m)),Math.round(mix(nightTop[1],dayTop[1],m)),Math.round(mix(nightTop[2],dayTop[2],m))];
+        const bot=[Math.round(mix(nightBot[0],dayBot[0],m)),Math.round(mix(nightBot[1],dayBot[1],m)),Math.round(mix(nightBot[2],dayBot[2],m))];
+        const g=ctx.createLinearGradient(0,0,0,H);
+        g.addColorStop(0,`rgb(${top[0]},${top[1]},${top[2]})`);
+        g.addColorStop(1,`rgb(${bot[0]},${bot[1]},${bot[2]})`);
+        ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
-        // sun & moon
         const sunAngle = tod * Math.PI * 2;
         const cx = W*0.5 + Math.cos(sunAngle) * W*0.35;
         const cy = H*0.65 - Math.sin(sunAngle) * H*0.45;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 18*DPR, 0, Math.PI*2);
-        ctx.fillStyle = (Math.sin(sunAngle) > 0) ? 'rgba(255,230,150,0.95)' : 'rgba(220,220,255,0.5)';
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, 18*DPR, 0, Math.PI*2);
+        ctx.fillStyle = (Math.sin(sunAngle) > 0) ? 'rgba(255,230,150,0.95)' : 'rgba(220,220,255,0.5)'; ctx.fill();
 
-        // clouds
-        for(const c of clouds){
-          c.x += c.v * dt * (0.5 + 0.5*m);
-          if(c.x > 1.1) c.x = -0.1;
-          drawCloud(c.x*W, c.y*H, c.s*W, 0.5 + 0.5*m);
-        }
-
-        // birds
-        for(const b of birds){
-          b.x += b.v * dt * 0.7;
-          if(b.x > 1.2) b.x = -0.2;
-          const y = b.y*H + Math.sin((t*2 + b.x*5))*6*DPR;
-          drawBird(b.x*W, y);
-        }
-
-        // trees & flowers
+        for(const c of clouds){ c.x += c.v * dt * (0.5 + 0.5*m); if(c.x > 1.1) c.x = -0.1; drawCloud(c.x*W, c.y*H, c.s*W, 0.5 + 0.5*m); }
+        for(const b of birds){ b.x += b.v * dt * 0.7; if(b.x > 1.2) b.x = -0.2; const y=b.y*H+Math.sin((t*2 + b.x*5))*6*DPR; drawBird(b.x*W, y); }
         for(const tr of trees){ drawTree(tr.x*W, H*(0.86 - tr.h), tr.h*H); }
         for(const fl of flowers){ drawFlower(fl.x*W, H*0.92, fl.h*H, fl.hue); }
+        ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(0, H*0.92, W, H*0.02);
+        for(const w of walkers){ const dir=w.flip?-1:1; w.x += w.v*dt*dir; if(w.x < -0.15){ w.flip=false; } if(w.x > 1.15){ w.flip=true; } drawWalker(w.x*W, H*0.90, w.flip); }
 
-        // ground strip
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.fillRect(0, H*0.92, W, H*0.02);
-
-        // walkers
-        for(const w of walkers){
-          const dir = w.flip ? -1 : 1;
-          w.x += w.v * dt * dir;
-          if(w.x < -0.15){ w.flip = false; }
-          if(w.x > 1.15){ w.flip = true; }
-          drawWalker(w.x*W, H*0.90, w.flip);
-        }
-
-        // Weather transitions
         weatherTimer -= dt;
         if(weatherTimer <= 0){
-          const r = Math.random();
-          weather = (r < 0.65) ? 'clear' : (r < 0.88 ? 'rain' : 'storm');
+          const r = Math.random(); weather = (r < 0.65) ? 'clear' : (r < 0.88 ? 'rain' : 'storm');
           weatherTimer = (weather === 'clear') ? rnd(12,20) : (weather === 'rain' ? rnd(12,18) : rnd(8,14));
         }
 
         if(weather !== 'clear'){
           const density = (weather === 'storm') ? 140 : 80;
-          while(drops.length < density){
-            drops.push({ x:rnd(0,W), y:rnd(-H*0.2,0), vY:rnd(H*0.6, H*1.0) });
-          }
+          while(drops.length < density){ drops.push({ x:rnd(0,W), y:rnd(-H*0.2,0), vY:rnd(H*0.6, H*1.0) }); }
           for(let i=0;i<drops.length;i++){
-            const d = drops[i];
-            d.y += d.vY * dt;
-            if(d.y > H){ d.y = rnd(-H*0.2, 0); d.x = rnd(0, W); }
-            ctx.strokeStyle = 'rgba(200,220,255,0.55)';
-            ctx.beginPath();
-            ctx.moveTo(d.x, d.y);
-            ctx.lineTo(d.x + 2*DPR, d.y + 8*DPR);
-            ctx.stroke();
+            const d=drops[i]; d.y += d.vY*dt; if(d.y > H){ d.y = rnd(-H*0.2, 0); d.x = rnd(0, W); }
+            ctx.strokeStyle='rgba(200,220,255,0.55)'; ctx.beginPath(); ctx.moveTo(d.x,d.y); ctx.lineTo(d.x+2*DPR,d.y+8*DPR); ctx.stroke();
           }
-        } else {
-          drops.length = Math.min(drops.length, 40);
-        }
+        } else drops.length = Math.min(drops.length, 40);
 
-        // Lightning flashes
-        if(weather === 'storm' && Math.random() < 0.005){ flash = 1; }
-        if(flash > 0){
-          ctx.fillStyle = `rgba(255,255,255,${0.6*flash})`;
-          ctx.fillRect(0,0,W,H);
-          flash = Math.max(0, flash - dt*2.5);
-        }
+        if(weather === 'storm' && Math.random() < 0.005) flash = 1;
+        if(flash > 0){ ctx.fillStyle = `rgba(255,255,255,${0.6*flash})`; ctx.fillRect(0,0,W,H); flash = Math.max(0, flash - dt*2.5); }
       }
 
       function drawCloud(x,y,w,alpha){
-        const h = w*0.45;
-        ctx.fillStyle = `rgba(240,245,255,${0.25*alpha})`; ctx.beginPath();
-        ctx.ellipse(x, y, w*0.28, h*0.5, 0, 0, Math.PI*2);
-        ctx.ellipse(x - w*0.25, y+3*DPR, w*0.22, h*0.45, 0, 0, Math.PI*2);
-        ctx.ellipse(x + w*0.24, y+4*DPR, w*0.26, h*0.48, 0, 0, Math.PI*2);
-        ctx.fill();
+        const h=w*0.45; ctx.fillStyle=`rgba(240,245,255,${0.25*alpha})`; ctx.beginPath();
+        ctx.ellipse(x,y,w*0.28,h*0.5,0,0,Math.PI*2); ctx.ellipse(x-w*0.25,y+3*DPR,w*0.22,h*0.45,0,0,Math.PI*2); ctx.ellipse(x+w*0.24,y+4*DPR,w*0.26,h*0.48,0,0,Math.PI*2); ctx.fill();
       }
+      function drawBird(x,y){ ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=1.5*DPR; ctx.beginPath(); ctx.moveTo(x-6*DPR,y); ctx.quadraticCurveTo(x-2*DPR,y-3*DPR,x,y); ctx.quadraticCurveTo(x+2*DPR,y-3*DPR,x+6*DPR,y); ctx.stroke(); }
+      function drawTree(x,y,h){ ctx.fillStyle='rgba(120,80,40,0.8)'; ctx.fillRect(x-h*0.05,y+h*0.2,h*0.1,h*0.8); ctx.fillStyle='rgba(60,160,90,0.75)'; ctx.beginPath(); ctx.arc(x, y+h*0.35, h*0.35, 0, Math.PI*2); ctx.fill(); }
+      function drawFlower(x,by,s,hue){ ctx.strokeStyle='rgba(120,200,120,0.8)'; ctx.beginPath(); ctx.moveTo(x,by); ctx.lineTo(x,by-s*1.2); ctx.stroke(); ctx.fillStyle=`hsla(${hue},80%,70%,0.85)`; ctx.beginPath(); ctx.arc(x,by-s*1.4,s*0.5,0,Math.PI*2); ctx.fill(); }
+      function drawWalker(x,y,flip){ ctx.save(); ctx.translate(x,y); ctx.scale(flip?-1:1,1); ctx.fillStyle='rgba(220,180,120,0.95)'; ctx.fillRect(-6, -18, 12, 12); ctx.fillStyle='rgba(80,160,240,0.9)'; ctx.fillRect(-7,-6,14,10); ctx.fillStyle='rgba(160,120,240,0.9)'; ctx.fillRect(-7,4,6,10); ctx.fillRect(1,4,6,10); ctx.restore(); }
 
-      function drawBird(x,y){
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5*DPR;
-        ctx.beginPath(); ctx.moveTo(x - 6*DPR, y);
-        ctx.quadraticCurveTo(x - 2*DPR, y - 3*DPR, x, y);
-        ctx.quadraticCurveTo(x + 2*DPR, y - 3*DPR, x + 6*DPR, y); ctx.stroke();
-      }
-
-      function drawTree(x,y,h){
-        ctx.fillStyle = 'rgba(120,80,40,0.8)'; ctx.fillRect(x - h*0.05, y + h*0.2, h*0.1, h*0.8);
-        ctx.fillStyle = 'rgba(60,160,90,0.75)'; ctx.beginPath(); ctx.arc(x, y + h*0.35, h*0.35, 0, Math.PI*2); ctx.fill();
-      }
-
-      function drawFlower(x, baseY, size, hue){
-        ctx.strokeStyle = 'rgba(120,200,120,0.8)'; ctx.beginPath(); ctx.moveTo(x, baseY); ctx.lineTo(x, baseY - size*1.2); ctx.stroke();
-        ctx.fillStyle = `hsla(${hue}, 80%, 70%, 0.85)`; ctx.beginPath(); ctx.arc(x, baseY - size*1.4, size*0.5, 0, Math.PI*2); ctx.fill();
-      }
-
-      function drawWalker(x,y,flip){
-        ctx.save(); ctx.translate(x, y); ctx.scale(flip?-1:1, 1);
-        ctx.fillStyle = 'rgba(220,180,120,0.95)'; ctx.fillRect(-6*DPR, -18*DPR, 12*DPR, 12*DPR);
-        ctx.fillStyle = 'rgba(80,160,240,0.9)';   ctx.fillRect(-7*DPR, -6*DPR, 14*DPR, 10*DPR);
-        ctx.fillStyle = 'rgba(160,120,240,0.9)';  ctx.fillRect(-7*DPR, 4*DPR, 6*DPR, 10*DPR); ctx.fillRect(1*DPR, 4*DPR, 6*DPR, 10*DPR);
-        ctx.restore();
-      }
-
-      let last = performance.now();
-      function loop(now){
-        const dt = (now - last)/1000; last = now;
-        drawScene(dt);
-        requestAnimationFrame(loop);
-      }
+      let last=performance.now();
+      function loop(now){ const dt=(now-last)/1000; last=now; drawScene(dt); requestAnimationFrame(loop); }
       requestAnimationFrame(loop);
     })();
   </script>
@@ -680,19 +661,11 @@
     const phaseTag = document.getElementById('phaseTag');
     const top5List = document.getElementById('top5List');
 
-    let running = false;
-    let gameOver = false;
-    let t0 = 0;
-    let last = 0;
-    let score = 0;
-    let speed = 210;
-    let gravity = 1250;
-    let groundY = canvas.height - 40;
+    let running = false, gameOver = false, t0 = 0, last = 0, score = 0;
+    let speed = 210, gravity = 1250, groundY = canvas.height - 40;
 
     const player = { x: 60, y: groundY - 40, w: 28, h: 40, vy: 0, onGround: true };
-    const obstacles = [];
-    let spawnTimer = 0;
-
+    const obstacles = []; let spawnTimer = 0;
     function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 
     function resetGame(){
@@ -701,37 +674,14 @@
       player.y = groundY - player.h; player.vy = 0; player.onGround = true;
       obstacles.length = 0; spawnTimer = 0;
       t0 = performance.now(); last = t0;
-      scoreEl.textContent = '0';
-      phaseTag.textContent = 'Oberwelt';
-      startBtn.style.display = 'inline-block';
-      restartBtn.style.display = 'none';
+      scoreEl.textContent = '0'; phaseTag.textContent = 'Oberwelt';
+      startBtn.style.display = 'inline-block'; restartBtn.style.display = 'none';
       draw(0);
     }
-
-    function startGame(){
-      if(running) return;
-      running = true; gameOver = false;
-      t0 = performance.now(); last = t0;
-      requestAnimationFrame(loop);
-    }
-
-    function endGame(){
-      running = false; gameOver = true;
-      restartBtn.style.display = 'inline-block';
-      startBtn.style.display = 'none';
-      submitScore(Math.floor(score)).catch(console.warn);
-    }
-
-    function jump(){
-      if(!running || gameOver) return;
-      if(player.onGround){ player.vy = -520; player.onGround = false; }
-    }
-
-    function currentPhase(elapsed){
-      if(elapsed <= 60) return { name: 'Oberwelt', mix: 0 };
-      const mix = clamp((elapsed - 61) / 10, 0, 1);
-      return { name: mix >= 1 ? 'Hölle' : 'Übergang', mix };
-    }
+    function startGame(){ if(running) return; running = true; gameOver = false; t0 = performance.now(); last = t0; requestAnimationFrame(loop); }
+    function endGame(){ running = false; gameOver = true; restartBtn.style.display = 'inline-block'; startBtn.style.display = 'none'; submitScore(Math.floor(score)).catch(console.warn); }
+    function jump(){ if(!running || gameOver) return; if(player.onGround){ player.vy = -520; player.onGround = false; } }
+    function currentPhase(elapsed){ if(elapsed <= 60) return { name:'Oberwelt', mix:0 }; const mix = clamp((elapsed-61)/10,0,1); return { name: mix>=1 ? 'Hölle' : 'Übergang', mix }; }
 
     function drawBackground(elapsed){
       const { mix } = currentPhase(elapsed);
@@ -739,15 +689,10 @@
       function lerp(a,b,t){ return Math.round(a + (b - a)*t); }
       const cTop = `rgb(${lerp(20, 20, mix)}, ${lerp(40, 8, mix)}, ${lerp(60, 8, mix)})`;
       const cMid = `rgb(${lerp(11, 58, mix)}, ${lerp(27, 10, mix)}, ${lerp(42, 10, mix)})`;
-      grd.addColorStop(0, cTop);
-      grd.addColorStop(1, cMid);
-      ctx.fillStyle = grd;
-      ctx.fillRect(0,0,canvas.width,canvas.height);
+      grd.addColorStop(0, cTop); grd.addColorStop(1, cMid); ctx.fillStyle = grd; ctx.fillRect(0,0,canvas.width,canvas.height);
       const groundColor = mix < 1 ? `rgb(${lerp(22,40,mix)}, ${lerp(90,20,mix)}, ${lerp(30,20,mix)})` : `rgb(60,20,20)`;
-      ctx.fillStyle = groundColor;
-      ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-      ctx.fillStyle = `rgba(${lerp(200,255,mix)}, ${lerp(200,60,mix)}, ${lerp(220,40,mix)}, ${0.06 + 0.12*mix})`;
-      ctx.fillRect(0, groundY-30, canvas.width, 30);
+      ctx.fillStyle = groundColor; ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+      ctx.fillStyle = `rgba(${lerp(200,255,mix)}, ${lerp(200,60,mix)}, ${lerp(220,40,mix)}, ${0.06 + 0.12*mix})`; ctx.fillRect(0, groundY-30, canvas.width, 30);
     }
 
     function drawPlayer(){
@@ -764,74 +709,34 @@
       const w = (type === 'pig') ? Math.random() * (36 - 28) + 28 : Math.random() * (44 - 34) + 34;
       obstacles.push({ x: canvas.width + 10, y: groundY - h, w, h, type });
     }
-
     function drawObstacle(o){
-      if(o.type === 'pig'){
-        ctx.fillStyle = '#ffb8c2'; ctx.fillRect(o.x, o.y, o.w, o.h);
-        ctx.fillStyle = '#ff8fa3'; ctx.fillRect(o.x + o.w*0.6, o.y + o.h*0.4, o.w*0.28, o.h*0.28);
-      } else {
-        ctx.fillStyle = '#9b6a4a'; ctx.fillRect(o.x, o.y, o.w, o.h);
-        ctx.fillStyle = '#e5d7c8'; ctx.fillRect(o.x + 2, o.y + o.h*0.2, 4, 4); ctx.fillRect(o.x + 2, o.y + o.h*0.55, 4, 4);
-      }
+      if(o.type === 'pig'){ ctx.fillStyle = '#ffb8c2'; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillStyle = '#ff8fa3'; ctx.fillRect(o.x+o.w*0.6, o.y+o.h*0.4, o.w*0.28, o.h*0.28); }
+      else { ctx.fillStyle = '#9b6a4a'; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillStyle = '#e5d7c8'; ctx.fillRect(o.x+2,o.y+o.h*0.2,4,4); ctx.fillRect(o.x+2,o.y+o.h*0.55,4,4); }
     }
 
     function loop(now){
       if(!running) return;
-      const dt = (now - last) / 1000; last = now;
-      const elapsed = (now - t0) / 1000;
-
-      const phase = currentPhase(elapsed);
-      phaseTag.textContent = (phase.mix < 1) ? 'Oberwelt' : 'Hölle';
-
-      speed += dt * 3.5;
-      score += dt * 10;
-      scoreEl.textContent = String(Math.floor(score));
-
-      player.vy += gravity * dt;
-      player.y += player.vy * dt;
-      if(player.y + player.h >= groundY){ player.y = groundY - player.h; player.vy = 0; player.onGround = true; }
-
-      spawnTimer -= dt;
-      if(spawnTimer <= 0){
-        spawnObstacle(elapsed);
-        spawnTimer = (phase.mix < 1) ? (Math.random() * (1.6 - 0.9) + 0.9) : (Math.random() * (1.3 - 0.75) + 0.75);
-      }
-
-      for(let i=obstacles.length-1;i>=0;i--){
-        const o = obstacles[i]; o.x -= speed * dt; if(o.x + o.w < 0) obstacles.splice(i,1);
-      }
-
-      for(const o of obstacles){
-        if(player.x < o.x + o.w && player.x + player.w > o.x && player.y < o.y + o.h && player.y + player.h > o.y){
-          endGame();
-        }
-      }
-
-      drawBackground(elapsed);
-      ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.beginPath(); ctx.moveTo(0, groundY + 0.5); ctx.lineTo(canvas.width, groundY + 0.5); ctx.stroke();
+      const dt = (now - last) / 1000; last = now; const elapsed = (now - t0) / 1000;
+      const phase = currentPhase(elapsed); phaseTag.textContent = (phase.mix < 1) ? 'Oberwelt' : 'Hölle';
+      speed += dt * 3.5; score += dt * 10; scoreEl.textContent = String(Math.floor(score));
+      player.vy += gravity * dt; player.y += player.vy * dt; if(player.y + player.h >= groundY){ player.y = groundY - player.h; player.vy = 0; player.onGround = true; }
+      spawnTimer -= dt; if(spawnTimer <= 0){ spawnObstacle(elapsed); spawnTimer = (phase.mix < 1) ? (Math.random() * (1.6 - 0.9) + 0.9) : (Math.random() * (1.3 - 0.75) + 0.75); }
+      for(let i=obstacles.length-1;i>=0;i--){ const o=obstacles[i]; o.x -= speed * dt; if(o.x + o.w < 0) obstacles.splice(i,1); }
+      for(const o of obstacles){ if(player.x < o.x + o.w && player.x + player.w > o.x && player.y < o.y + o.h && player.y + player.h > o.y){ endGame(); } }
+      drawBackground(elapsed); ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.beginPath(); ctx.moveTo(0, groundY + 0.5); ctx.lineTo(canvas.width, groundY + 0.5); ctx.stroke();
       drawPlayer(); obstacles.forEach(drawObstacle);
       if(running) requestAnimationFrame(loop);
     }
+    function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawBackground(0); drawPlayer(); }
 
-    function draw(){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawBackground(0); drawPlayer();
-    }
-
-    // --- Scoreboard (Firestore Top 5) ---
-    function sanitizeName(name){
-      name = (name || '').trim(); if(!name) name = 'Gast'; return name.replace(/[<>]/g, '');
-    }
+    function sanitizeName(name){ name = (name || '').trim(); if(!name) name = 'Gast'; return name.replace(/[<>]/g, ''); }
     async function submitScore(score){
       try{
         const nameKey = 'em3_player_name';
         let name = localStorage.getItem(nameKey) || prompt('Name für die Bestenliste (Tipp: Fantasiename)?');
         name = sanitizeName(name); localStorage.setItem(nameKey, name);
         await addDoc(collection(db, 'em3_scores'), { name, score, ts: serverTimestamp() });
-      } catch(err){
-        console.warn('Konnte Score nicht speichern:', err?.message || err);
-        alert('Score gespeichert (lokal). Online-Bestenliste evtl. nicht verfügbar.');
-      }
+      } catch(err){ console.warn('Konnte Score nicht speichern:', err?.message || err); alert('Score gespeichert (lokal). Online-Bestenliste evtl. nicht verfügbar.'); }
     }
     (function initTop5(){
       const q = query(collection(db, 'em3_scores'), orderBy('score', 'desc'), limit(5));
@@ -848,8 +753,144 @@
     restartBtn.addEventListener('click', () => { resetGame(); startGame(); });
     jumpBtn.addEventListener('click', jump);
     window.addEventListener('keydown', (e) => { if(e.code === 'Space' || e.code === 'ArrowUp'){ e.preventDefault(); jump(); } });
-
     draw();
+  </script>
+
+  <!-- TicTacToe logic (non-module) -->
+  <script>
+    (function(){
+      const grid = document.getElementById('tttGrid');
+      const statusEl = document.getElementById('tttStatus');
+      const select = document.getElementById('tttSymbol');
+      const newBtn = document.getElementById('tttNew');
+      const winEl = document.getElementById('tttWin');
+      const loseEl = document.getElementById('tttLose');
+      const drawEl = document.getElementById('tttDraw');
+
+      const LINES = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+
+      let board = Array(9).fill(null);
+      let player = 'X', bot = 'O', over = false;
+
+      // Stats
+      const STKEY = 'em3_ttt_stats';
+      let stats = null;
+      try{ stats = JSON.parse(localStorage.getItem(STKEY)) || {w:0,l:0,d:0}; }catch{ stats = {w:0,l:0,d:0}; }
+      function renderStats(){ winEl.textContent = stats.w; loseEl.textContent = stats.l; drawEl.textContent = stats.d; }
+      renderStats();
+      function saveStats(){ localStorage.setItem(STKEY, JSON.stringify(stats)); }
+
+      function setStatus(msg){ statusEl.textContent = msg; }
+
+      function resetBoard(){
+        board = Array(9).fill(null); over = false;
+        [...grid.children].forEach(c => { c.textContent = ''; c.classList.remove('disabled','win'); c.setAttribute('aria-label','Leer'); });
+      }
+
+      function startGame(){
+        player = select.value === 'O' ? 'O' : 'X';
+        bot = player === 'X' ? 'O' : 'X';
+        resetBoard();
+        setStatus(`Du bist ${player}. ${player === 'X' ? 'X beginnt.' : 'Bot beginnt.'}`);
+        if(player === 'O'){ botTurn(); }
+      }
+
+      function emptyIndices(){ const arr=[]; for(let i=0;i<9;i++) if(!board[i]) arr.push(i); return arr; }
+
+      function winnerFor(sym){
+        for(const [a,b,c] of LINES){
+          if(board[a]===sym && board[b]===sym && board[c]===sym) return [a,b,c];
+        }
+        return null;
+      }
+
+      function checkEnd(){
+        const pw = winnerFor(player);
+        if(pw){ endGame('win', pw); return true; }
+        const bw = winnerFor(bot);
+        if(bw){ endGame('lose', bw); return true; }
+        if(emptyIndices().length === 0){ endGame('draw'); return true; }
+        return false;
+      }
+
+      function endGame(type, winLine){
+        over = true;
+        [...grid.children].forEach(c => c.classList.add('disabled'));
+        if(type === 'win'){ stats.w++; setStatus('Du hast gewonnen! 🎉'); if(winLine) highlight(winLine); }
+        else if(type === 'lose'){ stats.l++; setStatus('Der Bot hat gewonnen. 😅'); if(winLine) highlight(winLine); }
+        else { stats.d++; setStatus('Unentschieden.'); }
+        saveStats(); renderStats();
+      }
+
+      function highlight(line){ line.forEach(i => grid.children[i].classList.add('win')); }
+
+      function winningMove(sym){
+        for(const [a,b,c] of LINES){
+          const line = [a,b,c];
+          const marks = line.map(i => board[i]);
+          const filled = marks.filter(Boolean).length;
+          if(filled >= 2){
+            let countSym = marks.filter(m => m===sym).length;
+            let idxEmpty = line.find(i => !board[i]);
+            if(countSym === 2 && idxEmpty !== undefined) return idxEmpty;
+          }
+        }
+        return null;
+      }
+
+      function botTurn(){
+        if(over) return;
+        let move = winningMove(bot);
+        if(move === null) move = winningMove(player);
+        if(move === null && !board[4]) move = 4;
+        const corners = [0,2,6,8].filter(i => !board[i]);
+        if(move === null && corners.length) move = corners[Math.floor(Math.random()*corners.length)];
+        const sides = [1,3,5,7].filter(i => !board[i]);
+        if(move === null && sides.length) move = sides[Math.floor(Math.random()*sides.length)];
+        if(move === null) return;
+        place(move, bot);
+        if(!checkEnd()) setStatus('Du bist dran.');
+      }
+
+      function place(idx, sym){
+        if(board[idx] || over) return;
+        board[idx] = sym;
+        const cell = grid.children[idx];
+        cell.textContent = sym === 'X' ? '✖' : '◯';
+        cell.classList.add('disabled');
+        cell.setAttribute('aria-label', sym);
+      }
+
+      function onPlayerMove(idx){
+        if(over) return;
+        if(board[idx]) return;
+        place(idx, player);
+        if(!checkEnd()){
+          setStatus('Bot denkt …');
+          setTimeout(botTurn, 260);
+        }
+      }
+
+      grid.addEventListener('click', (e) => {
+        const cell = e.target.closest('.ttt-cell');
+        if(!cell) return;
+        onPlayerMove(parseInt(cell.dataset.idx,10));
+      });
+      grid.addEventListener('keydown', (e) => {
+        if((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('ttt-cell')){
+          e.preventDefault();
+          onPlayerMove(parseInt(e.target.dataset.idx,10));
+        }
+      });
+      newBtn.addEventListener('click', startGame);
+      select.addEventListener('change', startGame);
+
+      startGame();
+    })();
   </script>
 </body>
 </html>
