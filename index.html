@@ -258,7 +258,13 @@
     .modal .actions{ margin-top:14px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
     .modal .ack{ margin-top:10px; }
     .modal .go{ opacity:.5; pointer-events:none; }
-  </style>
+  
+    /* Countdown styles */
+    .countdown{ margin:6px 0 0; font-weight:800; font-size: clamp(16px, 3.8vw, 22px); letter-spacing:.5px; }
+    .countdown small{ font-weight:600; color:#cbd0ff; }
+    .countdown .t{ font-variant-numeric: tabular-nums; }
+
+</style>
 </head>
 <body>
   <noscript>
@@ -327,6 +333,9 @@
       <section class="hero">
         <h1 class="coming" aria-label="Coming Soon">Coming&nbsp;Soon</h1>
         <p class="subtitle">Vorschau von JK Games. Bleib dran – das nächste große Update landet bald.</p>
+        <div class="countdown" id="countdown" aria-live="polite">
+          Freischaltung um <b>16:00</b> — <span class="t" id="cdText">–:–:–</span>
+        </div>
       </section>
 
       <section class="grid" aria-label="Highlights">
@@ -533,7 +542,69 @@
         ev.preventDefault();
         alert('Der Zugang ist aktuell gesperrt. Freischaltung folgt später.');
       });
-    })();
+    
+      // --- Release Timer: unlock at exactly 16:00 local time ---
+      const cdEl = document.getElementById('cdText');
+      const countdownWrap = document.getElementById('countdown');
+      const RELEASE_HOUR = 16, RELEASE_MIN = 0; // change here if needed
+
+      function todayAt(hour, min=0, sec=0, ms=0){
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, min, sec, ms);
+      }
+
+      function pad2(n){ return String(n).padStart(2,'0'); }
+
+      function unlockAccess(){
+        // Enable primary CTA
+        newSiteBtn.classList.remove('locked');
+        newSiteBtn.setAttribute('aria-disabled','false');
+        newSiteBtn.textContent = 'Neue Webseite';
+        newSiteBtn.title = 'Neue Webseite öffnen';
+        try{ newSiteBtn.removeEventListener('click', openModal); }catch{}
+
+        // Make sure modal confirm also works if it was already open
+        try{
+          // Replace node to drop old listeners
+          const old = confirmRedirect;
+          const clone = old.cloneNode(true);
+          old.parentNode.replaceChild(clone, old);
+          clone.href = newSiteBtn.getAttribute('href');
+          clone.classList.remove('disabled','go');
+          clone.setAttribute('aria-disabled','false');
+          clone.title = 'Zur neuen App – Weiterleiten';
+        }catch{}
+
+        // Small attention animation
+        try{
+          newSiteBtn.animate(
+            [{transform:'scale(1)'},{transform:'scale(1.04)'},{transform:'scale(1)'}],
+            {duration:700, iterations:2, easing:'ease-in-out'}
+          );
+        }catch{}
+      }
+
+      function updateCountdown(){
+        const now = new Date();
+        const target = todayAt(RELEASE_HOUR, RELEASE_MIN, 0, 0);
+        let diff = target - now;
+
+        if(diff <= 0){
+          if(cdEl) cdEl.textContent = 'Jetzt!';
+          unlockAccess();
+          clearInterval(timerId);
+          return;
+        }
+        const total = Math.floor(diff/1000);
+        const h = Math.floor(total/3600);
+        const m = Math.floor((total%3600)/60);
+        const s = total%60;
+        if(cdEl) cdEl.textContent = (h? pad2(h)+':' : '') + pad2(m) + ':' + pad2(s);
+      }
+
+      const timerId = setInterval(updateCountdown, 1000);
+      updateCountdown();
+})();
   </script>
 
   <!-- FX Animation script (non-module) -->
