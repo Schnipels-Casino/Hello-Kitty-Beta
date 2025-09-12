@@ -1,1 +1,320 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Emoji Match‑3 — Landing</title>
+  <style>
+    :root{
+      --bg1:#0b0f1e; /* Night sky */
+      --bg2:#1a1240; /* Deep purple */
+      --glow:#7c5cff;
+      --accent:#00d1ff;
+      --road:#272a31;
+      --line:#e8e8e8;
+      --leaf:#2f9658;
+      --bush:#1f6e42;
+      --trunk:#6a4a2b;
+      --rain: rgba(255,255,255,.6);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color:#fff;
+      background: radial-gradient(circle at 20% 0%, #15224b 0%, var(--bg1) 35%, var(--bg2) 100%);
+      overflow:hidden; /* cinematic */
+    }
+
+    /* ===== SKY LAYERS ===== */
+    .sky{position:fixed; inset:0; pointer-events:none}
+
+    .clouds{
+      position:absolute; inset:0; opacity:.35; filter: blur(1px);
+      background:
+        radial-gradient(40% 20% at 10% 20%, #ffffff15 0 60%, transparent 65%),
+        radial-gradient(30% 15% at 60% 10%, #ffffff18 0 60%, transparent 65%),
+        radial-gradient(35% 18% at 90% 15%, #ffffff12 0 60%, transparent 65%);
+      animation: drift 120s linear infinite;
+    }
+    @keyframes drift{from{background-position:0 0, 0 0, 0 0} to{background-position:2000px 0, -1500px 0, 1000px 0}}
+
+    /* Lightning flash */
+    .lightning{position:absolute; inset:0; background:#fff; opacity:0; mix-blend-mode:screen}
+    .lightning.flash{animation: flash 900ms ease-in-out}
+    @keyframes flash{0%{opacity:0} 10%{opacity:.9} 20%{opacity:.1} 30%{opacity:.8} 40%{opacity:.05} 100%{opacity:0}}
+
+    /* Rain */
+    .rain{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+    .drop{ position:absolute; width:2px; height:18px; background: linear-gradient(to bottom, var(--rain), transparent); border-radius:1px; filter: blur(.2px); }
+    @keyframes fall{ to { transform: translateY(110vh)} }
+
+    /* ===== GROUND ===== */
+    .scene{ position:fixed; inset:0; display:grid; place-items:center; }
+
+    .ground{ position:absolute; bottom:0; left:0; right:0; height:34vh; background: linear-gradient(#0d1326, #0a0d1b 25%, #0a0d1b 26%, #0a0d1b);
+      box-shadow: 0 -60px 120px #000 inset;
+    }
+
+    /* Trees & bushes (simple, lightweight) */
+    .tree, .bush{ position:absolute; bottom:18vh; transform-origin: bottom center; }
+    .tree{ width:36px; height:120px; left:10%; animation: sway 5s ease-in-out infinite alternate; }
+    .tree .trunk{ position:absolute; bottom:0; left:50%; width:10px; height:55px; transform:translateX(-50%); background:var(--trunk); border-radius: 4px; }
+    .tree .crown{ position:absolute; bottom:30px; left:50%; width:120px; height:120px; transform:translateX(-50%); background: radial-gradient(circle at 60% 30%, #45c279 0 30%, #2b8f58 31% 100%); border-radius:50%; filter: drop-shadow(0 6px 0 #1a6a3e) drop-shadow(0 12px 0 #134c2b); }
+
+    .bush{ width:120px; height:60px; background: radial-gradient(closest-side, #2aa160, #1e6a40); border-radius:60px; filter: drop-shadow(0 6px 0 #134c2b); animation: sway 6s ease-in-out infinite alternate; }
+    @keyframes sway{ from{ transform: rotate(-2deg)} to{ transform: rotate(2deg)} }
+
+    /* Road */
+    .road{ position:absolute; left:0; right:0; bottom:6vh; height:12vh; background:var(--road); box-shadow: 0 -12px 0 #1c1f27 inset, 0 12px 0 #1c1f27 inset; }
+    .road:before{ /* center dashed line */
+      content:""; position:absolute; left:0; right:0; top:50%; height:3px; transform:translateY(-50%);
+      background: repeating-linear-gradient(90deg, var(--line) 0 60px, transparent 60px 120px);
+      opacity:.75;
+    }
+
+    /* Cars */
+    .car{ position:absolute; bottom: calc(6vh + 2.6vh); width: 72px; height: 30px; border-radius:6px; background: linear-gradient(#e94949, #b82a2a); animation: drive 16s linear infinite; box-shadow:0 6px 16px #0006; }
+    .car.blue{ background: linear-gradient(#49a0e9, #2a5ab8) }
+    .car.green{ background: linear-gradient(#56e276, #2bb85b) }
+    .car:before, .car:after{ content:""; position:absolute; bottom:-8px; width:14px; height:14px; background:#111; border-radius:50%; box-shadow: inset 0 0 0 3px #333, inset 0 0 0 6px #555; }
+    .car:before{ left:8px } .car:after{ right:8px }
+    .car .cab{ position:absolute; left:35%; top:-16px; width:32px; height:16px; background: inherit; border-top-left-radius:8px; border-top-right-radius:6px; box-shadow: inset 0 -8px 0 #ffffff25 }
+    @keyframes drive{ from{ transform: translateX(-120px)} to{ transform: translateX(calc(100vw + 120px))} }
+
+    /* Walkers (simple mannequin silhouettes) */
+    .walkway{ position:absolute; left:0; right:0; bottom: calc(6vh + 12vh); height:6vh; }
+    .walker{ position:absolute; bottom: calc(6vh + 12vh); width: 18px; height: 52px; animation: walk 22s linear infinite; filter: drop-shadow(0 2px 2px #0008); }
+    .walker .head{ width:18px; height:18px; border-radius:50%; background:#d5d5d5; margin:0 auto 2px auto }
+    .walker .body{ width:10px; height:26px; background:#9a9a9a; margin:0 auto; border-radius:4px }
+    .walker .leg{ position:absolute; bottom:0; width:6px; height:22px; background:#8a8a8a; border-radius:4px; transform-origin: top center; }
+    .walker .leg.left{ left:2px; animation: stride 600ms ease-in-out infinite alternate }
+    .walker .leg.right{ right:2px; animation: stride 600ms ease-in-out infinite alternate-reverse }
+    @keyframes stride{ from{ transform: rotate(22deg)} to{ transform: rotate(-22deg)} }
+    @keyframes walk{ from{ transform: translateX(-60px)} to{ transform: translateX(calc(100vw + 60px))} }
+
+    /* ===== HERO / CTA ===== */
+    .hero{
+      position:relative; z-index:10; display:flex; flex-direction:column; align-items:center; gap:14px;
+      padding:24px 28px; border-radius:20px; backdrop-filter: blur(8px);
+      background: linear-gradient(#ffffff15, #ffffff08);
+      box-shadow: 0 10px 40px #0008, inset 0 0 0 1px #ffffff22;
+      text-align:center; max-width:min(92vw, 680px);
+    }
+    .title{ font-weight:800; font-size: clamp(22px, 5vw, 38px); letter-spacing:.4px; text-shadow:0 2px 16px #000a }
+    .subtitle{ opacity:.85; font-size: clamp(12px, 2.3vw, 16px)}
+
+    .cta{ --pad:14px; cursor:pointer; user-select:none; border:none; border-radius:16px; padding: var(--pad) calc(var(--pad) * 1.8);
+      font-weight:700; font-size: clamp(14px, 2.6vw, 18px); color:#0b0f1e;
+      background: radial-gradient(120% 120% at 20% 20%, #a08bff 0%, #7c5cff 35%, #00d1ff 100%);
+      box-shadow: 0 10px 28px #4b37ff55, inset 0 0 0 2px #ffffff88; transition: transform .12s ease, box-shadow .2s ease;
+    }
+    .cta:hover{ transform: translateY(-2px); box-shadow:0 16px 34px #4b37ff66}
+
+    /* Effects toggle */
+    .controls{ position: fixed; right: 14px; top: 14px; z-index:20; display:flex; gap:8px; align-items:center; background:#0007; padding:8px 10px; border-radius:14px; box-shadow:0 4px 20px #0008; backdrop-filter: blur(6px)}
+    .switch{ display:inline-flex; align-items:center; gap:8px; font-size:13px }
+    .switch input{ appearance:none; width:42px; height:26px; background:#ffffff2a; border-radius:999px; position:relative; outline:none; cursor:pointer }
+    .switch input:after{ content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; background:#fff; border-radius:50%; transition:left .2s ease }
+    .switch input:checked{ background:#7c5cff88 }
+    .switch input:checked:after{ left:19px }
+
+    /* Footer hint */
+    .hint{ position:fixed; left:12px; bottom:10px; opacity:.75; font-size:12px }
+
+    /* ===== MODAL (AGB & REGELN) ===== */
+    .modal{ position:fixed; inset:0; background:#000c; display:none; align-items:center; justify-content:center; z-index:50 }
+    .modal.open{ display:flex }
+    .sheet{ width:min(92vw, 900px); max-height:82vh; overflow:auto; background:#0f1324; color:#e9ecf6; border-radius:18px; box-shadow:0 30px 80px #000a; border:1px solid #ffffff22 }
+    .sheet header{ position:sticky; top:0; background:#0f1324; padding:14px 18px; border-bottom:1px solid #ffffff22; display:flex; justify-content:space-between; align-items:center }
+    .sheet h2{ margin:0; font-size:20px }
+    .sheet .content{ padding:18px; line-height:1.6 }
+    .checks{ display:grid; gap:10px; grid-template-columns:1fr; padding:0 18px 18px }
+    .checks label{ display:flex; gap:10px; align-items:flex-start; font-size:14px }
+    .sheet footer{ position:sticky; bottom:0; background:#0f1324; padding:12px 18px; border-top:1px solid #ffffff22; display:flex; gap:10px; justify-content:flex-end }
+    .btn{ padding:10px 14px; border-radius:12px; border:1px solid #ffffff33; background:#ffffff12; color:#fff; font-weight:600; cursor:pointer }
+    .btn.primary{ border-color:transparent; background:linear-gradient(90deg, #7c5cff, #00d1ff); color:#0b0f1e }
+    .btn[disabled]{ opacity:.5; filter:grayscale(1); cursor:not-allowed }
+    .btn[aria-disabled="true"]{ opacity:.5; filter:grayscale(1); pointer-events:none; cursor:not-allowed }
+
+    /* Reduced effects mode */
+    .reduced .rain, .reduced .clouds, .reduced .tree, .reduced .bush, .reduced .car, .reduced .walker, .reduced .lightning{ display:none !important }
+
+    /* Responsive tweaks */
+    @media (max-width: 640px){
+      .hero{ padding:18px 16px }
+      .subtitle{ font-size: 13px }
+      .car{ transform: scale(.9); }
+      .tree{ transform: scale(.9) }
+      .bush{ transform: scale(.9) }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sky & weather layers -->
+  <div class="sky">
+    <div class="clouds"></div>
+    <div class="rain" aria-hidden="true"></div>
+    <div class="lightning" aria-hidden="true"></div>
+  </div>
+
+  <!-- Cinematic scene -->
+  <div class="scene" role="presentation">
+    <div class="ground"></div>
+
+    <!-- Vegetation (a few instances for depth) -->
+    <div class="tree" style="left:6%">
+      <div class="trunk"></div><div class="crown"></div>
+    </div>
+    <div class="tree" style="left:78%; animation-duration:6.5s">
+      <div class="trunk"></div><div class="crown"></div>
+    </div>
+    <div class="bush" style="left:20%"></div>
+    <div class="bush" style="left:62%; animation-duration:7s"></div>
+
+    <!-- Road & traffic -->
+    <div class="road"></div>
+    <div class="car" style="animation-delay: 0s"><div class="cab"></div></div>
+    <div class="car blue" style="animation-duration: 18s; animation-delay: 5s"><div class="cab"></div></div>
+    <div class="car green" style="animation-duration: 21s; animation-delay: 11s"><div class="cab"></div></div>
+
+    <!-- Walkers -->
+    <div class="walker" style="left:-40px; animation-delay: 3s">
+      <div class="head"></div><div class="body"></div><div class="leg left"></div><div class="leg right"></div>
+    </div>
+    <div class="walker" style="left:-80px; animation-delay: 10s">
+      <div class="head"></div><div class="body"></div><div class="leg left"></div><div class="leg right"></div>
+    </div>
+
+    <!-- CTA Card -->
+    <div class="hero" aria-live="polite">
+      <div class="title">Emoji Match‑3 — Link</div>
+      <div class="subtitle">Regen. Gewitter. Straße lebt. Drücke den Start‑Button in der Mitte, um zum Spiel zu gelangen.<br/>Vorher bestätigen wir kurz AGB & Spielregeln.</div>
+      <button id="start" class="cta" aria-haspopup="dialog" aria-controls="termsModal">Zum Spiel</button>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls" aria-label="Einstellungen">
+    <span class="switch" title="Effekte reduzieren (Performance-Modus)">
+      <input id="toggleEffects" type="checkbox" />
+      <label for="toggleEffects">Effekte</label>
+    </span>
+  </div>
+
+  <div class="hint">Tipp: Oben rechts kannst du Effekte ausschalten, falls ein Gerät schwächer ist.</div>
+
+  <!-- Modal: AGB & Regeln -->
+  <div id="termsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+    <div class="sheet">
+      <header>
+        <h2 id="termsTitle">AGB & Spielregeln</h2>
+        <button class="btn" id="closeModal" aria-label="Schließen">Schließen</button>
+      </header>
+      <div class="content">
+        <h3>Allgemeine Geschäftsbedingungen (Kurzfassung)</h3>
+        <p><strong>Hinweis:</strong> Diese Vorlage ist keine Rechtsberatung. Bitte passe die Inhalte an deine finalen AGB an.</p>
+        <ol>
+          <li><strong>Nutzung:</strong> Das Spiel ist ein Freizeitangebot. Es können Wartungen und Updates erfolgen.</li>
+          <li><strong>Registrierung & Kontosicherheit:</strong> Zugangsdaten vertraulich behandeln. Konten dürfen nicht geteilt oder verkauft werden.</li>
+          <li><strong>Virtuelle Inhalte:</strong> Spielstände, Punkte, Power‑Ups sind virtuell und haben keinen Geldwert.</li>
+          <li><strong>Haftung:</strong> Keine Haftung für Ausfälle, Datenverlust oder Schäden aus unsachgemäßer Nutzung.</li>
+          <li><strong>Datenschutz:</strong> Es können Dienste wie Firebase (Auth/Firestore) genutzt werden. Es gelten die jeweiligen Datenschutzbestimmungen.</li>
+          <li><strong>Urheberrecht:</strong> Inhalte (Grafiken, Code, Sounds) dürfen nicht ohne Erlaubnis kopiert werden.</li>
+          <li><strong>Änderungen:</strong> Regeln & AGB können angepasst werden. Wesentliche Änderungen werden angekündigt.</li>
+          <li><strong>Kontakt:</strong> Betreiber‑Kontakt hier einfügen.</li>
+        </ol>
+
+        <h3>Spielregeln</h3>
+        <ul>
+          <li><strong>Fairplay:</strong> Kein Cheating, keine Bots, kein Ausnutzen von Bugs.</li>
+          <li><strong>Respekt:</strong> Keine Beleidigungen, Spam oder diskriminierende Inhalte in Chats/Namen.</li>
+          <li><strong>Sicherheit:</strong> Teile keine privaten Daten. Melde Bugs verantwortungsvoll.</li>
+          <li><strong>Konsequenzen:</strong> Verstöße können zu Verwarnungen, Sperren oder Reset führen.</li>
+        </ul>
+
+        <p>Mit deiner Bestätigung akzeptierst du diese Punkte und die ausführlichen AGB/Datenschutz, die auf der Hauptseite verlinkt sind.</p>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="chk1"> <span>Ich habe die AGB gelesen.</span></label>
+        <label><input type="checkbox" id="chk2"> <span>Ich akzeptiere die Spielregeln.</span></label>
+        <label><input type="checkbox" id="chk3"> <span>Ich bin mindestens 13 Jahre alt.</span></label>
+      </div>
+      <footer>
+        <button class="btn" id="decline">Ablehnen</button>
+        <a class="btn primary" id="agree" href="https://j-k-games.github.io/Emoji-Match-1/" aria-disabled="true">Weiter zum Spiel</a>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // ===== Effects toggling =====
+    const toggle = document.getElementById('toggleEffects');
+    toggle.addEventListener('change', ()=>{
+      document.body.classList.toggle('reduced', toggle.checked);
+    });
+
+    // ===== Rain generation =====
+    const rain = document.querySelector('.rain');
+    const DROPS = Math.min(140, Math.floor(window.innerWidth / 8));
+    for(let i=0;i<DROPS;i++){
+      const d = document.createElement('div');
+      d.className = 'drop';
+      const left = Math.random()*100; // vw
+      const delay = Math.random()*-2.5; // s
+      const speed = 1.2 + Math.random()*1.8; // s
+      const scale = .6 + Math.random()*0.9;
+      d.style.left = left + 'vw';
+      d.style.top = (-10 - Math.random()*90) + 'vh';
+      d.style.opacity = (0.4 + Math.random()*0.6).toFixed(2);
+      d.style.transform = `scaleY(${scale.toFixed(2)})`;
+      d.style.animation = `fall ${speed.toFixed(2)}s linear ${delay.toFixed(2)}s infinite`;
+      rain.appendChild(d);
+    }
+
+    // ===== Random lightning =====
+    const lightning = document.querySelector('.lightning');
+    function scheduleFlash(){
+      const t = 4000 + Math.random()*9000; // 4–13s
+      setTimeout(()=>{
+        lightning.classList.add('flash');
+        setTimeout(()=> lightning.classList.remove('flash'), 1100);
+        scheduleFlash();
+      }, t);
+    }
+    scheduleFlash();
+
+    // ===== AGB modal logic =====
+    const modal = document.getElementById('termsModal');
+    const startBtn = document.getElementById('start');
+    const closeBtn = document.getElementById('closeModal');
+    const declineBtn = document.getElementById('decline');
+    const agreeLink = document.getElementById('agree');
+    const TARGET_URL = 'https://j-k-games.github.io/Emoji-Match-1/';
+    agreeLink.setAttribute('href', TARGET_URL);
+    const checks = [...document.querySelectorAll('#termsModal input[type="checkbox"]')];
+
+    function updateAgree(){
+      const ok = checks.every(c=>c.checked);
+      agreeLink.setAttribute('aria-disabled', ok ? 'false' : 'true');
+    }
+    checks.forEach(c=> c.addEventListener('change', updateAgree));
+
+    startBtn.addEventListener('click', ()=>{ modal.classList.add('open'); updateAgree(); });
+    closeBtn.addEventListener('click', ()=> modal.classList.remove('open'));
+    declineBtn.addEventListener('click', ()=> modal.classList.remove('open'));
+
+    // Navigation erfolgt nativ über den Link #agree (href) sobald Checks aktiv sind.
+
+    // Accessibility: close on backdrop click
+    modal.addEventListener('click', (e)=>{ if(e.target === modal) modal.classList.remove('open'); });
+
+    // Keep scene cars/walkers staggered on resize
+    window.addEventListener('resize', ()=>{
+      // no-op placeholder; animations are in CSS, but hook kept for future tuning
+    });
+  </script>
+</body>
+</html>
 
